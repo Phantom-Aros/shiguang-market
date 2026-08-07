@@ -1,0 +1,125 @@
+.card {
+  background: var(--sg-color-bg-elevated);
+  border-radius: var(--sg-radius-lg);
+  padding: var(--sg-space-6);
+  box-shadow: var(--sg-shadow-sm);
+}
+
+.card h2 {
+  font-size: var(--sg-font-size-lg);
+  margin-bottom: var(--sg-space-4);
+}
+
+.info {
+  display: flex;
+  gap: var(--sg-space-4);
+  align-items: center;
+  margin-bottom: var(--sg-space-6);
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--sg-color-primary);
+  color: var(--sg-color-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--sg-font-size-xl);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.nickname {
+  font-size: var(--sg-font-size-lg);
+  font-weight: 600;
+  color: var(--sg-color-text);
+}
+
+.meta {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-color-text-secondary);
+  margin-top: var(--sg-space-1);
+}
+
+.section {
+  margin-bottom: var(--sg-space-6);
+}
+
+.sectionTitle {
+  font-size: var(--sg-font-size-xs);
+  font-weight: 600;
+  color: var(--sg-color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--sg-space-2);
+  padding-left: var(--sg-space-1);
+}
+
+.menuGroup {
+  border-radius: var(--sg-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--sg-color-border-light);
+  background: var(--sg-color-bg);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-space-3);
+  padding: var(--sg-space-3) var(--sg-space-4);
+  min-height: 64px;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--sg-transition-fast);
+}
+
+.menuItem:active {
+  background: var(--sg-color-border-light);
+}
+
+@media (hover: hover) {
+  .menuItem:hover {
+    background: color-mix(in srgb, var(--sg-color-border-light) 60%, transparent);
+  }
+}
+
+.menuIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--sg-radius-sm);
+  background: color-mix(in srgb, var(--sg-color-primary) 12%, transparent);
+  color: var(--sg-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.menuContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.menuLabel {
+  display: block;
+  font-size: var(--sg-font-size-md);
+  font-weight: 500;
+  color: var(--sg-color-text);
+  line-height: 1.4;
+}
+
+.menuDesc {
+  display: block;
+  font-size: var(--sg-font-size-xs);
+  color: var(--sg-color-text-tertiary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.menuArrow {
+  color: var(--sg-color-text-tertiary);
+  flex-shrink: 0;
+}

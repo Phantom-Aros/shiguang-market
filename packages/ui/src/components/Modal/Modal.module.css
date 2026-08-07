@@ -1,0 +1,98 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--sg-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sg-space-4);
+  background: var(--sg-color-overlay);
+  animation: fadeIn var(--sg-transition-normal);
+}
+
+.dialog {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  background: var(--sg-color-bg-elevated);
+  border-radius: var(--sg-radius-lg);
+  box-shadow: var(--sg-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  animation: slideUp var(--sg-transition-normal);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sg-space-4) var(--sg-space-5);
+  border-bottom: 1px solid var(--sg-color-border-light);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--sg-font-size-lg);
+  font-weight: 600;
+}
+
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sg-touch-target, 44px);
+  height: var(--sg-touch-target, 44px);
+  margin: calc((var(--sg-touch-target, 44px) - 32px) / -2);
+  border: none;
+  border-radius: var(--sg-radius-sm);
+  background: transparent;
+  color: var(--sg-color-text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.close:active {
+  background: var(--sg-color-border-light);
+}
+
+@media (hover: hover) {
+  .close:hover {
+    background: var(--sg-color-border-light);
+  }
+}
+
+.body {
+  padding: var(--sg-space-5);
+  overflow-y: auto;
+}
+
+.bodyNoTitle {
+  padding-top: var(--sg-space-5);
+}
+
+.footer {
+  padding: var(--sg-space-4) var(--sg-space-5);
+  border-top: 1px solid var(--sg-color-border-light);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sg-space-3);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,32 @@
+.loading {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sg-space-2);
+}
+
+.block {
+  display: flex;
+  width: 100%;
+  padding: var(--sg-space-8) 0;
+  justify-content: center;
+}
+
+.spinner {
+  border: 3px solid var(--sg-color-border);
+  border-top-color: var(--sg-color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.tip {
+  margin: 0;
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-color-text-secondary);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

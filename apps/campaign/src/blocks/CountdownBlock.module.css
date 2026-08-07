@@ -1,0 +1,22 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: var(--campaign-primary, var(--sg-color-primary, #ff4d4f));
+  color: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.countdown {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

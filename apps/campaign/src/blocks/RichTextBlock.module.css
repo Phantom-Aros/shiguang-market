@@ -1,0 +1,16 @@
+.wrap {
+  padding: 16px;
+  background: var(--sg-color-surface, #fff);
+  border-radius: 12px;
+}
+
+.line {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--sg-color-text-secondary, #666);
+}
+
+.line:last-child {
+  margin-bottom: 0;
+}

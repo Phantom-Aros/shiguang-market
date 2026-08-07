@@ -1,0 +1,43 @@
+.shell {
+  max-width: 640px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--sg-touch-target) + var(--sg-safe-area-top));
+  padding: var(--sg-safe-area-top) var(--sg-space-4) 0;
+  background: color-mix(in srgb, var(--sg-color-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--sg-color-border-light);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--sg-font-size-md);
+  font-weight: 600;
+  color: var(--sg-color-text);
+  line-height: var(--sg-touch-target);
+}
+
+.main {
+  flex: 1;
+  padding: var(--sg-space-4);
+}
+
+.mainWithTab {
+  padding-bottom: calc(var(--sg-tab-bar-height) + var(--sg-space-4));
+}
+
+.mainFullBleed {
+  padding-bottom: var(--sg-safe-area-bottom);
+}

@@ -1,0 +1,204 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-6);
+  padding-bottom: calc(
+    var(--sg-touch-target) + var(--sg-space-3) * 2 + var(--sg-safe-area-bottom) + var(--sg-space-4)
+  );
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sg-space-1);
+  min-height: var(--sg-touch-target, 44px);
+  margin: calc(var(--sg-space-4) * -1) calc(var(--sg-space-4) * -1) 0;
+  padding: 0 var(--sg-space-4);
+  border: none;
+  background: transparent;
+  color: var(--sg-color-text-secondary);
+  font-size: var(--sg-font-size-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back:active {
+  opacity: 0.6;
+}
+
+.backIcon {
+  transform: rotate(180deg);
+}
+
+.article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-4);
+}
+
+.authorBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-space-3);
+}
+
+.avatar,
+.avatarPlaceholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatarPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sg-color-border-light);
+  color: var(--sg-color-text-tertiary);
+}
+
+.authorName {
+  font-size: var(--sg-font-size-sm);
+  font-weight: 600;
+  color: var(--sg-color-text);
+}
+
+.meta {
+  margin-top: 2px;
+  font-size: var(--sg-font-size-xs);
+  color: var(--sg-color-text-tertiary);
+}
+
+.title {
+  font-size: var(--sg-font-size-xl);
+  line-height: 1.4;
+  color: var(--sg-color-text);
+}
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3);
+  border-radius: var(--sg-radius-md);
+  overflow: hidden;
+  margin-left: calc(var(--sg-space-4) * -1);
+  margin-right: calc(var(--sg-space-4) * -1);
+}
+
+.content {
+  font-size: var(--sg-font-size-sm);
+  line-height: 1.7;
+  color: var(--sg-color-text-secondary);
+  white-space: pre-wrap;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sg-space-2);
+}
+
+.tag {
+  font-size: var(--sg-font-size-xs);
+  color: var(--sg-color-primary);
+  background: color-mix(in srgb, var(--sg-color-primary) 12%, transparent);
+  padding: 4px 10px;
+  border-radius: var(--sg-radius-full);
+}
+
+.products h2,
+.related h2 {
+  font-size: var(--sg-font-size-md);
+  margin-bottom: var(--sg-space-3);
+}
+
+.productList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-space-3);
+}
+
+.productItem {
+  display: flex;
+  gap: var(--sg-space-3);
+  padding: var(--sg-space-3);
+  background: var(--sg-color-bg-elevated);
+  border-radius: var(--sg-radius-md);
+  box-shadow: var(--sg-shadow-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.productCover {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--sg-radius-sm);
+  object-fit: cover;
+}
+
+.productInfo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sg-space-2);
+}
+
+.productName {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-color-text);
+}
+
+.actions {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--sg-space-3);
+  width: 100%;
+  max-width: 640px;
+  padding: var(--sg-space-3) var(--sg-space-4);
+  padding-bottom: calc(var(--sg-space-3) + var(--sg-safe-area-bottom));
+  background: var(--sg-color-bg-elevated);
+  border-top: 1px solid var(--sg-color-border);
+}
+
+.action,
+.actionActive {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sg-space-2);
+  min-height: var(--sg-touch-target, 44px);
+  border: 1px solid var(--sg-color-border);
+  border-radius: var(--sg-radius-full);
+  background: var(--sg-color-bg);
+  color: var(--sg-color-text-secondary);
+  font-size: var(--sg-font-size-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action:active,
+.actionActive:active {
+  opacity: 0.7;
+}
+
+.actionActive {
+  color: var(--sg-color-primary);
+  border-color: color-mix(in srgb, var(--sg-color-primary) 30%, transparent);
+  background: color-mix(in srgb, var(--sg-color-primary) 8%, transparent);
+}
+
+.relatedGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sg-space-3);
+}
+
+.relatedGrid a {
+  text-decoration: none;
+  color: inherit;
+}

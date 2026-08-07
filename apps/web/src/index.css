@@ -1,0 +1,27 @@
+:root {
+  font-family: var(--sg-font-family);
+  line-height: 1.5;
+  color: var(--sg-color-text);
+  background: var(--sg-color-bg);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--sg-font-family);
+  font-size: var(--sg-font-size-md);
+  color: var(--sg-color-text);
+  background: var(--sg-color-bg);
+  -webkit-font-smoothing: antialiased;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}

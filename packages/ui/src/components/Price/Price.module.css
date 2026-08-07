@@ -1,0 +1,32 @@
+.price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  color: var(--sg-color-primary);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.currency {
+  font-size: 0.75em;
+}
+
+.sm {
+  font-size: var(--sg-font-size-sm);
+}
+
+.md {
+  font-size: var(--sg-font-size-lg);
+}
+
+.lg {
+  font-size: var(--sg-font-size-2xl);
+}
+
+.original {
+  margin-left: var(--sg-space-2);
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--sg-color-text-tertiary);
+  text-decoration: line-through;
+}

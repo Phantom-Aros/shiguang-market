@@ -1,0 +1,32 @@
+.countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--sg-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--sg-color-text);
+}
+
+.block {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  background: var(--sg-color-primary);
+  color: var(--sg-color-text-inverse);
+  border-radius: var(--sg-radius-sm);
+  font-weight: 600;
+  font-size: var(--sg-font-size-xs);
+}
+
+.sep {
+  margin: 0 2px;
+  color: var(--sg-color-text-secondary);
+}
+
+.colon {
+  color: var(--sg-color-primary);
+  font-weight: 700;
+}

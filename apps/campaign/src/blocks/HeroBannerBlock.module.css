@@ -1,0 +1,39 @@
+.hero {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.image {
+  width: 100%;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 20px 16px;
+  background: linear-gradient(transparent 30%, rgba(0, 0, 0, 0.55));
+  color: #fff;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
