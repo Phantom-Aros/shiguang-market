@@ -154,7 +154,7 @@ export function PostDetailPage() {
           onClick={() => toggleFavorite(post.isFavorited)}
         >
           <Icon name="star" size={20} />
-          <span>{post.isFavorited ? '已藏' : '收藏'}</span>
+          <span>{post.isFavorited ? '已收藏' : '收藏'}</span>
         </button>
       </footer>
 

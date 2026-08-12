@@ -81,7 +81,10 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     return conversation.conversationId;
   }
 
-  async function sendMessage(content: string) {
+  async function sendMessage(
+    content: string,
+    options?: { retry?: boolean; skipOptimisticUser?: boolean },
+  ) {
     if (!isAuthenticated) {
       navigate('/login', { state: { from: `/products/${productId}` } });
       return;
@@ -90,36 +93,51 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     const trimmed = content.trim();
     if (!trimmed || status === 'streaming') return;
 
+    const isRetry = options?.retry === true;
+    const skipOptimisticUser = options?.skipOptimisticUser === true || isRetry;
+
     setErrorMessage('');
     setInput('');
     setStatus('streaming');
     setStreamingContent('');
 
     const id = await ensureConversation();
-    const userMessage: AiMessage = {
-      messageId: `temp-${Date.now()}`,
-      conversationId: id,
-      role: 'user',
-      content: trimmed,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
+
+    let optimisticUserMessageId: string | null = null;
+    if (!skipOptimisticUser) {
+      const userMessage: AiMessage = {
+        messageId: `temp-${Date.now()}`,
+        conversationId: id,
+        role: 'user',
+        content: trimmed,
+        createdAt: new Date().toISOString(),
+      };
+      optimisticUserMessageId = userMessage.messageId;
+      setMessages((prev) => [...prev, userMessage]);
+    }
 
     chatStartRef.current = Date.now();
     track(AnalyticsEvents.AI_CHAT_START, {
       conversationId: id,
       productId,
       source: 'product_detail',
+      retry: isRetry,
     });
 
     const controller = new AbortController();
     abortRef.current = controller;
     let assistantText = '';
+    let serverAcked = false;
+    let shouldSyncFromServer = false;
+    let hasError = false;
 
     try {
-      for await (const event of api.ai.chatStream(id, trimmed, controller.signal)) {
+      for await (const event of api.ai.chatStream(id, trimmed, {
+        signal: controller.signal,
+        retry: isRetry,
+      })) {
         if (event.type === 'thinking') {
-          // 保持 streaming 状态，等待首 token
+          serverAcked = true;
         } else if (event.type === 'token') {
           assistantText += event.data;
           setStreamingContent(assistantText);
@@ -130,18 +148,7 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
         }
       }
 
-      if (assistantText) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            messageId: `assistant-${Date.now()}`,
-            conversationId: id,
-            role: 'assistant',
-            content: assistantText,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      }
+      shouldSyncFromServer = true;
 
       track(AnalyticsEvents.AI_CHAT_COMPLETE, {
         conversationId: id,
@@ -151,18 +158,7 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
       });
     } catch (err) {
       if (controller.signal.aborted) {
-        if (assistantText) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              messageId: `assistant-${Date.now()}`,
-              conversationId: id,
-              role: 'assistant',
-              content: `${assistantText}…`,
-              createdAt: new Date().toISOString(),
-            },
-          ]);
-        }
+        shouldSyncFromServer = true;
         track(AnalyticsEvents.AI_CHAT_COMPLETE, {
           conversationId: id,
           productId,
@@ -171,13 +167,28 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
           durationMs: chatStartRef.current ? Date.now() - chatStartRef.current : 0,
         });
       } else {
+        hasError = true;
         setErrorMessage(err instanceof Error ? err.message : '发送失败，请重试');
-        setStatus('error');
-        return;
+
+        if (!serverAcked && optimisticUserMessageId) {
+          // 请求未到达服务器：撤销乐观添加的 user 消息
+          setMessages((prev) => prev.filter((m) => m.messageId !== optimisticUserMessageId));
+        } else if (serverAcked) {
+          // 服务器已存 user，仅生成失败：以服务器数据为准
+          shouldSyncFromServer = true;
+        }
       }
     } finally {
+      if (shouldSyncFromServer) {
+        try {
+          const { items } = await api.ai.getMessages(id);
+          setMessages(items);
+        } catch {
+          // 校准失败时保留当前本地状态，避免覆盖已有内容
+        }
+      }
       setStreamingContent('');
-      setStatus('idle');
+      setStatus(hasError ? 'error' : 'idle');
       abortRef.current = null;
       queryClient.invalidateQueries({ queryKey: ['ai', 'conversations'] });
     }
@@ -187,9 +198,10 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     abortRef.current?.abort();
   }
 
-  function handleRetry() {
+  async function handleRetry() {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    if (!lastUser) return;
+    if (!lastUser || !conversationId) return;
+
     setMessages((prev) => {
       const lastAssistantIdx = [...prev].reverse().findIndex((m) => m.role === 'assistant');
       if (lastAssistantIdx === -1) return prev;
@@ -197,7 +209,24 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
       return prev.filter((_, i) => i !== idx);
     });
     setErrorMessage('');
-    sendMessage(lastUser.content);
+
+    try {
+      await api.ai.removeLastAssistantMessage(conversationId);
+
+      const { items } = await api.ai.getMessages(conversationId);
+      const lastServer = items[items.length - 1];
+      const serverHasUser =
+        lastServer?.role === 'user' && lastServer.content === lastUser.content;
+
+      if (serverHasUser) {
+        await sendMessage(lastUser.content, { retry: true });
+      } else {
+        await sendMessage(lastUser.content, { skipOptimisticUser: true });
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : '重试失败，请稍后再试');
+      setStatus('error');
+    }
   }
 
   function handleNewChat() {

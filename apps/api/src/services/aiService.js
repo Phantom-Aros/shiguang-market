@@ -102,10 +102,12 @@ function writeSseEvent(res, event) {
  * @param {string} content
  * @param {import('express').Response} res
  * @param {AbortSignal} [signal]
+ * @param {{ retry?: boolean }} [options]
  */
-export async function streamChat(userId, conversationId, content, res, signal) {
+export async function streamChat(userId, conversationId, content, res, signal, options = {}) {
   const conversation = await assertConversationOwner(userId, conversationId);
   const trimmed = content.trim();
+  const isRetry = options.retry === true;
 
   if (!trimmed) {
     throw new AppError('消息不能为空', 'VALIDATION_ERROR', 400);
@@ -115,7 +117,15 @@ export async function streamChat(userId, conversationId, content, res, signal) {
   setupSse(res);
   writeSseEvent(res, { type: 'thinking' });
 
-  await aiRepository.insertMessage({ conversationId, role: 'user', content: trimmed });
+  if (isRetry) {
+    const existing = await aiRepository.findMessagesByConversationId(conversationId);
+    const lastMessage = existing[existing.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== trimmed) {
+      throw new AppError('无法重试该消息', 'VALIDATION_ERROR', 400);
+    }
+  } else {
+    await aiRepository.insertMessage({ conversationId, role: 'user', content: trimmed });
+  }
 
   const history = await aiRepository.findMessagesByConversationId(conversationId);
   const messages = history.map((m) => ({ role: m.role, content: m.content }));
@@ -174,5 +184,7 @@ export async function removeLastAssistantMessage(userId, conversationId) {
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
   if (lastAssistant) {
     await aiRepository.deleteMessage(lastAssistant.messageId);
+    return { removed: true, messageId: lastAssistant.messageId };
   }
+  return { removed: false };
 }

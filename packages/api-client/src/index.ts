@@ -317,10 +317,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
       getMessages(conversationId: string) {
         return request<AiMessagesResponse>(`/ai/conversations/${conversationId}/messages`);
       },
+      removeLastAssistantMessage(conversationId: string) {
+        return request<{ removed: boolean; messageId?: string }>(
+          `/ai/conversations/${conversationId}/messages/last-assistant`,
+          { method: 'DELETE' },
+        );
+      },
       async *chatStream(
         conversationId: string,
         content: string,
-        signal?: AbortSignal,
+        options?: { signal?: AbortSignal; retry?: boolean },
       ): AsyncGenerator<AiChatEvent> {
         const accessToken = tokenStorage.getAccess();
         const headers: Record<string, string> = {
@@ -333,8 +339,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
         const response = await fetch(`${baseUrl}/ai/conversations/${conversationId}/chat`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ content }),
-          signal,
+          body: JSON.stringify({ content, retry: options?.retry }),
+          signal: options?.signal,
         });
 
         if (!response.ok) {

@@ -27,6 +27,8 @@ export interface CreateAiConversationInput {
 /** 发送 AI 消息请求 */
 export interface AiChatInput {
   content: string;
+  /** 重试模式：不重复写入 user 消息，仅重新生成 assistant 回复 */
+  retry?: boolean;
 }
 
 /** AI 会话列表响应 */

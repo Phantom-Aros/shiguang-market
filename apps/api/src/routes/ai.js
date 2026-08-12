@@ -15,6 +15,7 @@ const createConversationSchema = z.object({
 
 const chatSchema = z.object({
   content: z.string().min(1).max(2000),
+  retry: z.boolean().optional(),
 });
 
 const aiChatLimiter = createRateLimiter({
@@ -72,11 +73,28 @@ router.post(
         req.body.content,
         res,
         controller.signal,
+        { retry: req.body.retry },
       );
     } catch (err) {
       if (!res.headersSent) {
         next(err);
       }
+    }
+  },
+);
+
+router.delete(
+  '/conversations/:conversationId/messages/last-assistant',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await aiService.removeLastAssistantMessage(
+        req.userId,
+        req.params.conversationId,
+      );
+      ok(res, data);
+    } catch (err) {
+      next(err);
     }
   },
 );
