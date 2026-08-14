@@ -83,6 +83,19 @@ router.post(
   },
 );
 
+router.post(
+  '/conversations/:conversationId/chat/stop',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await aiService.stopGeneration(req.userId, req.params.conversationId);
+      ok(res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 router.delete(
   '/conversations/:conversationId/messages/last-assistant',
   requireAuth,

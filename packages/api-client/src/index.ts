@@ -323,6 +323,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
           { method: 'DELETE' },
         );
       },
+      stopChat(conversationId: string) {
+        return request<{ stopped: boolean }>(
+          `/ai/conversations/${conversationId}/chat/stop`,
+          { method: 'POST' },
+        );
+      },
       async *chatStream(
         conversationId: string,
         content: string,

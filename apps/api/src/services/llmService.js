@@ -14,11 +14,16 @@ function* chunkText(text, chunkSize = 4) {
 /**
  * Mock 流式输出（开发环境无 API Key 时使用）
  * @param {string} userMessage
+ * @param {AbortSignal} [signal]
  */
-async function* mockStream(userMessage) {
+async function* mockStream(userMessage, signal) {
   const reply = `【Mock 模式】你好！我是拾光市集 AI 导购。你问的是：「${userMessage.slice(0, 50)}」。配置 AI_API_KEY 并关闭 AI_MOCK 即可接入真实大模型。`;
+  const chunkDelayMs = Number(process.env.AI_MOCK_CHUNK_DELAY_MS ?? 80);
+
   for (const chunk of chunkText(reply)) {
-    await new Promise((r) => setTimeout(r, 30));
+    if (signal?.aborted) return;
+    await new Promise((r) => setTimeout(r, chunkDelayMs));
+    if (signal?.aborted) return;
     yield chunk;
   }
 }
@@ -35,7 +40,7 @@ async function* mockStream(userMessage) {
 export async function* streamChat({ systemPrompt, messages, signal }) {
   if (aiConfig.mock) {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    yield* mockStream(lastUser?.content ?? '');
+    yield* mockStream(lastUser?.content ?? '', signal);
     return;
   }
 
@@ -74,6 +79,8 @@ export async function* streamChat({ systemPrompt, messages, signal }) {
 
   try {
     while (true) {
+      if (signal?.aborted) return;
+
       const { done, value } = await reader.read();
       if (done) break;
 

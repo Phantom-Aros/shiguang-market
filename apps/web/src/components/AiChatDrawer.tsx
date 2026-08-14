@@ -17,6 +17,81 @@ interface AiChatDrawerProps {
 
 type ChatStatus = 'idle' | 'streaming' | 'error';
 
+const MESSAGE_SYNC_MAX_ATTEMPTS = 30;
+const MESSAGE_SYNC_INTERVAL_MS = 200;
+
+async function syncMessagesFromServer(
+  conversationId: string,
+  options?: { waitForAssistant?: boolean; maxAttempts?: number },
+) {
+  const waitForAssistant = options?.waitForAssistant ?? false;
+  const maxAttempts = options?.maxAttempts ?? MESSAGE_SYNC_MAX_ATTEMPTS;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { items } = await api.ai.getMessages(conversationId);
+    const lastItem = items[items.length - 1];
+    if (!waitForAssistant || lastItem?.role === 'assistant') {
+      return items;
+    }
+    await new Promise((resolve) => setTimeout(resolve, MESSAGE_SYNC_INTERVAL_MS));
+  }
+
+  const { items } = await api.ai.getMessages(conversationId);
+  return items;
+}
+
+function withLocalStoppedAssistant(
+  items: AiMessage[],
+  conversationId: string,
+  assistantText: string,
+): AiMessage[] {
+  const lastItem = items[items.length - 1];
+  if (!assistantText || lastItem?.role === 'assistant') {
+    return items;
+  }
+
+  const plain = assistantText.replace(/…$/, '');
+  return [
+    ...items,
+    {
+      messageId: `pending-sync-${Date.now()}`,
+      conversationId,
+      role: 'assistant',
+      content: `${plain}…`,
+      createdAt: new Date().toISOString(),
+    },
+  ];
+}
+
+/** 用户手动停止后，仅当服务器内容与停止时一致才采纳（避免完整回复覆盖截断内容） */
+function isAcceptedStoppedServerContent(serverContent: string, localText: string) {
+  const plain = localText.replace(/…$/, '');
+  return serverContent === `${plain}…`;
+}
+
+function resolveStoppedSyncResult(
+  items: AiMessage[],
+  conversationId: string,
+  assistantText: string,
+): AiMessage[] {
+  const last = items[items.length - 1];
+  if (!assistantText) return items;
+
+  if (last?.role === 'user') {
+    return withLocalStoppedAssistant(items, conversationId, assistantText);
+  }
+
+  if (last?.role === 'assistant' && isAcceptedStoppedServerContent(last.content, assistantText)) {
+    return items;
+  }
+
+  if (last?.role === 'assistant') {
+    return withLocalStoppedAssistant(items.slice(0, -1), conversationId, assistantText);
+  }
+
+  return items;
+}
+
 export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDrawerProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -30,6 +105,10 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const chatStartRef = useRef<number | null>(null);
+  // 停止时用于即时构造截断消息
+  const assistantTextRef = useRef('');
+  const streamingConversationRef = useRef<string | null>(null);
+  const stoppingRef = useRef(false);
 
   const conversationsQuery = useQuery({
     queryKey: ['ai', 'conversations'],
@@ -128,8 +207,15 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     abortRef.current = controller;
     let assistantText = '';
     let serverAcked = false;
+    // 是否已收到后端落库确认（done / stopped 事件在 insertMessage 之后发出）
+    let receivedPersistAck = false;
     let shouldSyncFromServer = false;
     let hasError = false;
+    let wasUserStopped = false;
+
+    stoppingRef.current = false;
+    assistantTextRef.current = '';
+    streamingConversationRef.current = id;
 
     try {
       for await (const event of api.ai.chatStream(id, trimmed, {
@@ -139,11 +225,17 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
         if (event.type === 'thinking') {
           serverAcked = true;
         } else if (event.type === 'token') {
+          if (stoppingRef.current) continue;
           assistantText += event.data;
+          assistantTextRef.current = assistantText;
           setStreamingContent(assistantText);
         } else if (event.type === 'error') {
           throw new Error(event.data);
-        } else if (event.type === 'done') {
+        } else if (event.type === 'done' || event.type === 'stopped') {
+          receivedPersistAck = true;
+          if (event.type === 'stopped') {
+            wasUserStopped = true;
+          }
           break;
         }
       }
@@ -158,6 +250,7 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
       });
     } catch (err) {
       if (controller.signal.aborted) {
+        wasUserStopped = true;
         shouldSyncFromServer = true;
         track(AnalyticsEvents.AI_CHAT_COMPLETE, {
           conversationId: id,
@@ -180,11 +273,40 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
       }
     } finally {
       if (shouldSyncFromServer) {
+        const hadLocalAssistant = Boolean(assistantText);
         try {
-          const { items } = await api.ai.getMessages(id);
+          let items = receivedPersistAck
+            ? (await api.ai.getMessages(id)).items
+            : await syncMessagesFromServer(id, { waitForAssistant: hadLocalAssistant });
+
+          if (wasUserStopped && hadLocalAssistant) {
+            items = resolveStoppedSyncResult(items, id, assistantText);
+          } else {
+            const needsFallback = hadLocalAssistant && items[items.length - 1]?.role === 'user';
+            if (needsFallback) {
+              items = withLocalStoppedAssistant(items, id, assistantText);
+            }
+          }
           setMessages(items);
+
+          // 用户停止后：仅当服务器落库的截断内容与本地一致时，才用真实 messageId 替换
+          if (wasUserStopped && hadLocalAssistant) {
+            void syncMessagesFromServer(id, { waitForAssistant: true })
+              .then((synced) => {
+                const last = synced[synced.length - 1];
+                if (
+                  last?.role === 'assistant' &&
+                  isAcceptedStoppedServerContent(last.content, assistantText)
+                ) {
+                  setMessages(synced);
+                }
+              })
+              .catch(() => {});
+          }
         } catch {
-          // 校准失败时保留当前本地状态，避免覆盖已有内容
+          if (assistantText) {
+            setMessages((prev) => withLocalStoppedAssistant(prev, id, assistantText));
+          }
         }
       }
       setStreamingContent('');
@@ -195,7 +317,30 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
   }
 
   function handleStop() {
-    abortRef.current?.abort();
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+
+    const id = streamingConversationRef.current;
+    const partial = assistantTextRef.current;
+
+    // 1) 立即在本地把已生成内容定格为截断消息（带省略号），无需等待服务器
+    if (id && partial) {
+      setMessages((prev) => withLocalStoppedAssistant(prev, id, partial));
+    }
+    setStreamingContent('');
+
+    // 2) 显式通知后端停止生成并落库截断内容（不依赖 SSE 连接关闭）
+    if (id) {
+      void api.ai
+        .stopChat(id)
+        .catch(() => {})
+        .finally(() => {
+          // 3) 断开 SSE，让 sendMessage 的 finally 走停止后的同步/校准流程
+          abortRef.current?.abort();
+        });
+    } else {
+      abortRef.current?.abort();
+    }
   }
 
   async function handleRetry() {

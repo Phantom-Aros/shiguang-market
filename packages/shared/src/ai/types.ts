@@ -42,9 +42,16 @@ export interface AiMessagesResponse {
   items: AiMessage[];
 }
 
+/** SSE 落库完成事件载荷 */
+export interface AiChatPersistEvent {
+  messageId: string;
+  conversationId: string;
+}
+
 /** SSE 流式事件 */
 export type AiChatEvent =
   | { type: 'thinking' }
   | { type: 'token'; data: string }
-  | { type: 'done' }
+  | { type: 'done'; data?: AiChatPersistEvent }
+  | { type: 'stopped'; data: AiChatPersistEvent }
   | { type: 'error'; data: string };

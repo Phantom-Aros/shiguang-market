@@ -303,6 +303,7 @@ export type {
   AiChatInput,
   AiConversationListResponse,
   AiMessagesResponse,
+  AiChatPersistEvent,
   AiChatEvent,
 } from './ai/types.js';
 

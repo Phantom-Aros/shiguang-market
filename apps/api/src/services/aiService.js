@@ -5,6 +5,13 @@ import * as productRepository from '../repositories/productRepository.js';
 import * as llmService from './llmService.js';
 
 /**
+ * 正在进行中的生成任务：conversationId -> AbortController
+ * 用于「显式停止」——不依赖 SSE 连接关闭（经过 dev 代理时连接关闭可能延迟）。
+ * @type {Map<string, AbortController>}
+ */
+const activeGenerations = new Map();
+
+/**
  * @param {string} userId
  * @param {{ productId?: string }} [input]
  */
@@ -131,46 +138,93 @@ export async function streamChat(userId, conversationId, content, res, signal, o
   const messages = history.map((m) => ({ role: m.role, content: m.content }));
   const systemPrompt = await buildSystemPrompt(conversation);
 
+  // 本地控制器：既响应客户端断连（signal），也响应显式停止接口
+  const localController = new AbortController();
+  const onExternalAbort = () => localController.abort();
+  if (signal) {
+    if (signal.aborted) localController.abort();
+    else signal.addEventListener('abort', onExternalAbort, { once: true });
+  }
+  activeGenerations.set(conversationId, localController);
+  const localSignal = localController.signal;
+
   let fullContent = '';
 
   try {
-    for await (const token of llmService.streamChat({ systemPrompt, messages, signal })) {
-      if (signal?.aborted) break;
-      fullContent += token;
-      writeSseEvent(res, { type: 'token', data: token });
+    try {
+      for await (const token of llmService.streamChat({ systemPrompt, messages, signal: localSignal })) {
+        if (localSignal.aborted) break;
+        fullContent += token;
+        writeSseEvent(res, { type: 'token', data: token });
+      }
+    } catch (streamErr) {
+      if (!localSignal.aborted) {
+        throw streamErr;
+      }
     }
 
-    if (fullContent) {
-      await aiRepository.insertMessage({
-        conversationId,
-        role: 'assistant',
-        content: fullContent,
+    const saved = await saveAssistantMessage(conversationId, fullContent, localSignal.aborted);
+
+    if (localSignal.aborted) {
+      if (saved) {
+        writeSseEvent(res, {
+          type: 'stopped',
+          data: { messageId: saved.messageId, conversationId },
+        });
+      }
+    } else if (saved) {
+      writeSseEvent(res, {
+        type: 'done',
+        data: { messageId: saved.messageId, conversationId },
       });
-      await aiRepository.touchConversation(conversationId);
-    }
-
-    if (!signal?.aborted) {
+    } else {
       writeSseEvent(res, { type: 'done' });
     }
   } catch (err) {
-    if (signal?.aborted) {
-      if (fullContent) {
-        await aiRepository.insertMessage({
-          conversationId,
-          role: 'assistant',
-          content: `${fullContent}…`,
-        });
-        await aiRepository.touchConversation(conversationId);
-      }
-    } else {
-      writeSseEvent(res, {
-        type: 'error',
-        data: err instanceof Error ? err.message : '生成失败',
-      });
-    }
+    writeSseEvent(res, {
+      type: 'error',
+      data: err instanceof Error ? err.message : '生成失败',
+    });
   } finally {
+    signal?.removeEventListener?.('abort', onExternalAbort);
+    if (activeGenerations.get(conversationId) === localController) {
+      activeGenerations.delete(conversationId);
+    }
     res.end();
   }
+}
+
+/**
+ * 显式停止指定会话正在进行的生成（不依赖 SSE 连接关闭）
+ * @param {string} userId
+ * @param {string} conversationId
+ */
+export async function stopGeneration(userId, conversationId) {
+  await assertConversationOwner(userId, conversationId);
+  const controller = activeGenerations.get(conversationId);
+  if (controller) {
+    controller.abort();
+    return { stopped: true };
+  }
+  return { stopped: false };
+}
+
+/**
+ * @param {string} conversationId
+ * @param {string} fullContent
+ * @param {boolean} aborted
+ */
+async function saveAssistantMessage(conversationId, fullContent, aborted) {
+  if (!fullContent) return null;
+
+  const content = aborted ? `${fullContent}…` : fullContent;
+  const saved = await aiRepository.insertMessage({
+    conversationId,
+    role: 'assistant',
+    content,
+  });
+  await aiRepository.touchConversation(conversationId);
+  return saved;
 }
 
 /**
