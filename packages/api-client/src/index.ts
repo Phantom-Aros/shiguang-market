@@ -7,6 +7,8 @@ import type {
   CampaignSummary,
   CampaignVersion,
   CampaignVersionsResponse,
+  CampaignListResponse,
+  CampaignManageData,
   Cart,
   CreateCampaignResponse,
   CreateOrderInput,
@@ -16,19 +18,35 @@ import type {
   OrderDetail,
   OrderListPage,
   PostDetail,
+  PostShareMeta,
   ProductDetail,
   PublishedCampaign,
   SendSmsResponse,
   User,
 } from '@shiguang/shared';
+import { browserFetch, type HttpFetch } from './fetch';
+import {
+  createLocalStorageTokenStorage,
+  type TokenStorage,
+} from './storage';
 
-const STORAGE_KEY_ACCESS = 'sg_access_token';
-const STORAGE_KEY_REFRESH = 'sg_refresh_token';
+export type { HttpFetch, HttpResponse } from './fetch';
+export type { TokenStorage } from './storage';
+export {
+  browserFetch,
+  createTaroFetch,
+} from './fetch';
+export {
+  createLocalStorageTokenStorage,
+  createSyncStorageTokenStorage,
+} from './storage';
 
 export interface ApiClientOptions {
   baseUrl?: string;
   headers?: Record<string, string>;
   onUnauthorized?: () => void;
+  storage?: TokenStorage;
+  fetchFn?: HttpFetch;
 }
 
 export class ApiError extends Error {
@@ -42,30 +60,15 @@ export class ApiError extends Error {
   }
 }
 
-export const tokenStorage = {
-  getAccess(): string | null {
-    return localStorage.getItem(STORAGE_KEY_ACCESS);
-  },
-  getRefresh(): string | null {
-    return localStorage.getItem(STORAGE_KEY_REFRESH);
-  },
-  set(accessToken: string, refreshToken: string): void {
-    localStorage.setItem(STORAGE_KEY_ACCESS, accessToken);
-    localStorage.setItem(STORAGE_KEY_REFRESH, refreshToken);
-  },
-  clear(): void {
-    localStorage.removeItem(STORAGE_KEY_ACCESS);
-    localStorage.removeItem(STORAGE_KEY_REFRESH);
-  },
-  hasTokens(): boolean {
-    return Boolean(tokenStorage.getAccess() && tokenStorage.getRefresh());
-  },
-};
+/** Web 端默认 token 存储（localStorage） */
+export const tokenStorage = createLocalStorageTokenStorage();
 
 let refreshPromise: Promise<void> | null = null;
 
 export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = options.baseUrl ?? '';
+  const storage = options.storage ?? tokenStorage;
+  const fetchFn = options.fetchFn ?? browserFetch;
   let onUnauthorized = options.onUnauthorized;
 
   function setOnUnauthorized(handler: () => void) {
@@ -73,28 +76,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
   }
 
   async function doRefresh(): Promise<void> {
-    const refreshToken = tokenStorage.getRefresh();
+    const refreshToken = storage.getRefresh();
     if (!refreshToken) {
-      tokenStorage.clear();
+      storage.clear();
       onUnauthorized?.();
       throw new ApiError('未登录', 'UNAUTHORIZED', 401);
     }
 
-    const response = await fetch(`${baseUrl}/auth/refresh`, {
+    const response = await fetchFn(`${baseUrl}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
 
-    const body = (await response.json()) as ApiResponse<LoginResponse>;
+    const body = await response.json<ApiResponse<LoginResponse>>();
 
     if (!body.ok) {
-      tokenStorage.clear();
+      storage.clear();
       onUnauthorized?.();
       throw new ApiError(body.error, body.code, response.status);
     }
 
-    tokenStorage.set(body.data.tokens.accessToken, body.data.tokens.refreshToken);
+    storage.set(body.data.tokens.accessToken, body.data.tokens.refreshToken);
   }
 
   async function refreshOnce(): Promise<void> {
@@ -107,7 +110,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
   }
 
   async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
-    const accessToken = tokenStorage.getAccess();
+    const accessToken = storage.getAccess();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -118,23 +121,24 @@ export function createApiClient(options: ApiClientOptions = {}) {
       headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
-    const body = (await response.json()) as ApiResponse<T>;
+    const response = await fetchFn(`${baseUrl}${path}`, { ...init, headers });
+    const body = await response.json<ApiResponse<T>>();
 
     if (!body.ok) {
       if (
         body.code === 'UNAUTHORIZED' &&
         !retried &&
-        tokenStorage.getRefresh() &&
+        storage.getRefresh() &&
         !path.includes('/auth/refresh') &&
-        !path.includes('/auth/sms/')
+        !path.includes('/auth/sms/') &&
+        !path.includes('/auth/wechat/')
       ) {
         await refreshOnce();
         return request<T>(path, init, true);
       }
 
       if (body.code === 'UNAUTHORIZED') {
-        tokenStorage.clear();
+        storage.clear();
         onUnauthorized?.();
       }
 
@@ -172,8 +176,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
           body: JSON.stringify({ phone, code }),
         });
       },
+      loginWithWechat(code: string) {
+        return request<LoginResponse>('/auth/wechat/login', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        });
+      },
       logout() {
-        const refreshToken = tokenStorage.getRefresh();
+        const refreshToken = storage.getRefresh();
         if (!refreshToken) return Promise.resolve({ success: true });
         return request<{ success: boolean }>('/auth/logout', {
           method: 'POST',
@@ -198,6 +208,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
     posts: {
       get(postId: string) {
         return request<PostDetail>(`/posts/${postId}`);
+      },
+      shareMeta(postId: string) {
+        return request<PostShareMeta>(`/posts/${postId}/share-meta`);
       },
       related(postId: string) {
         return request<{ items: FeedPage['items'] }>(`/posts/${postId}/related`);
@@ -266,8 +279,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     campaigns: {
+      list() {
+        return request<CampaignListResponse>('/campaigns');
+      },
       getBySlug(slug: string) {
         return request<PublishedCampaign>(`/campaigns/${slug}`);
+      },
+      getForManage(slug: string) {
+        return request<CampaignManageData>(`/campaigns/manage/${slug}`);
       },
       create(input: { slug: string; title: string; schema?: Record<string, unknown> }) {
         return request<CreateCampaignResponse>('/campaigns', {
@@ -289,6 +308,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
             body: JSON.stringify({ rolloutPercent }),
           },
         );
+      },
+      unpublish(campaignId: string) {
+        return request<{ campaign: CampaignSummary }>(`/campaigns/${campaignId}/unpublish`, {
+          method: 'POST',
+        });
       },
       rollback(campaignId: string, versionId: string) {
         return request<{ campaign: CampaignSummary; publishedVersion: CampaignVersion }>(
@@ -334,7 +358,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
         content: string,
         options?: { signal?: AbortSignal; retry?: boolean },
       ): AsyncGenerator<AiChatEvent> {
-        const accessToken = tokenStorage.getAccess();
+        const accessToken = storage.getAccess();
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
@@ -342,7 +366,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers.Authorization = `Bearer ${accessToken}`;
         }
 
-        const response = await fetch(`${baseUrl}/ai/conversations/${conversationId}/chat`, {
+        const response = await fetchFn(`${baseUrl}/ai/conversations/${conversationId}/chat`, {
           method: 'POST',
           headers,
           body: JSON.stringify({ content, retry: options?.retry }),
@@ -350,14 +374,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
         });
 
         if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as ApiResponse<unknown> | null;
+          const body = await response.json<ApiResponse<unknown>>().catch(() => null);
           if (body && !body.ok) {
             throw new ApiError(body.error, body.code, response.status);
           }
           throw new ApiError('AI 对话失败', 'INTERNAL_ERROR', response.status);
         }
 
-        const reader = response.body?.getReader();
+        // SSE 流式仅 Web 端支持
+        const nativeResponse = response as unknown as Response;
+        const reader = nativeResponse.body?.getReader();
         if (!reader) {
           throw new ApiError('无法读取流式响应', 'INTERNAL_ERROR', 500);
         }

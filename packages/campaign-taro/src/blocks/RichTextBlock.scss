@@ -1,0 +1,16 @@
+.campaign-richtext {
+  padding: $sg-space-4;
+  background: $sg-color-bg-elevated;
+  border-radius: $sg-radius-md;
+
+  &__line {
+    display: block;
+    font-size: $sg-font-size-sm;
+    line-height: 1.7;
+    color: $sg-color-text-secondary;
+
+    & + & {
+      margin-top: 8rpx;
+    }
+  }
+}

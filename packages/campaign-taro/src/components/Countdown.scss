@@ -1,0 +1,23 @@
+.campaign-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: $sg-font-size-md;
+  font-weight: 600;
+  color: $sg-color-primary;
+  font-variant-numeric: tabular-nums;
+
+  &__block {
+    min-width: 48rpx;
+    padding: 8rpx 12rpx;
+    text-align: center;
+    background: rgba($sg-color-primary, 0.1);
+    border-radius: $sg-radius-sm;
+  }
+
+  &__sep,
+  &__colon {
+    color: $sg-color-text-secondary;
+    font-weight: 500;
+  }
+}

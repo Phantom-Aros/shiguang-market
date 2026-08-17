@@ -34,6 +34,19 @@ export function mapVersionRow(row) {
 }
 
 /**
+ * 列出所有活动（搭建器用）
+ */
+export async function listAll() {
+  const result = await query(
+    `SELECT campaign_id, slug, title, status, published_version_id, canary_version_id,
+            rollout_percent, created_at, updated_at
+     FROM campaigns
+     ORDER BY updated_at DESC`,
+  );
+  return result.rows;
+}
+
+/**
  * @param {string} slug
  */
 export async function findBySlug(slug) {
@@ -260,4 +273,40 @@ export function shouldUseCanary(userId, rolloutPercent) {
   const hash = createHash('sha256').update(userId).digest('hex');
   const bucket = parseInt(hash.slice(0, 8), 16) % 100;
   return bucket < rolloutPercent;
+}
+
+/**
+ * @param {import('pg').PoolClient} client
+ * @param {string} campaignId
+ */
+export async function unpublishCampaign(client, campaignId) {
+  const result = await client.query(
+    `UPDATE campaigns
+     SET status = 'draft',
+         canary_version_id = NULL,
+         rollout_percent = 0,
+         updated_at = NOW()
+     WHERE campaign_id = $1
+     RETURNING campaign_id, slug, title, status, published_version_id, canary_version_id,
+               rollout_percent, created_at, updated_at`,
+    [campaignId],
+  );
+  return result.rows[0];
+}
+
+/**
+ * @param {string} campaignId
+ * @param {string | null} publishedVersionId
+ */
+export async function getEditingVersion(campaignId, publishedVersionId) {
+  const draft = await getLatestDraftVersion(campaignId);
+  if (draft) return draft;
+
+  if (publishedVersionId) {
+    const published = await findVersionById(publishedVersionId);
+    if (published) return published;
+  }
+
+  const versions = await listVersions(campaignId);
+  return versions[0] ?? null;
 }

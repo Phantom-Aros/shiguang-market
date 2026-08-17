@@ -6,6 +6,15 @@ import * as postService from '../services/postService.js';
 
 const router = Router();
 
+router.get('/:postId/share-meta', async (req, res, next) => {
+  try {
+    const data = await postService.getShareMeta(req.params.postId);
+    ok(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:postId/related', optionalAuth, async (req, res, next) => {
   try {
     const data = await postService.getRelatedPosts(req.params.postId, req.userId);

@@ -23,6 +23,11 @@ export const env = {
   smsDevCode: process.env.SMS_DEV_CODE ?? '123456',
   wechatAppId: process.env.WECHAT_APP_ID ?? '',
   wechatAppSecret: process.env.WECHAT_APP_SECRET ?? '',
+  /** 生产环境 CORS 白名单，逗号分隔；留空则不允许跨域 */
+  corsOrigins: (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
   minioEndpoint: process.env.MINIO_ENDPOINT ?? 'localhost',
   minioPort: Number(process.env.MINIO_PORT ?? 9000),
   minioAccessKey: process.env.MINIO_ACCESS_KEY ?? 'minioadmin',

@@ -6,7 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=!mini-program",
+    "dev:mini-program": "turbo run dev --filter=mini-program",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test"

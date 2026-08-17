@@ -212,3 +212,54 @@ export async function getPublishedCampaignBySlug(slug, userId) {
     publishedAt: version.published_at?.toISOString() ?? null,
   };
 }
+
+/**
+ * 搭建器：列出所有活动
+ */
+export async function listCampaigns() {
+  const rows = await campaignRepository.listAll();
+  return {
+    items: rows.map(campaignRepository.mapCampaignRow),
+  };
+}
+
+/**
+ * @param {string} slug
+ */
+export async function getCampaignForManage(slug) {
+  const campaign = await campaignRepository.findBySlug(slug);
+  if (!campaign) {
+    throw new AppError('活动不存在', 'NOT_FOUND', 404);
+  }
+
+  const editingVersion = await campaignRepository.getEditingVersion(
+    campaign.campaign_id,
+    campaign.published_version_id,
+  );
+
+  return {
+    campaign: campaignRepository.mapCampaignRow(campaign),
+    editingVersion: editingVersion ? campaignRepository.mapVersionRow(editingVersion) : null,
+  };
+}
+
+/**
+ * @param {string} campaignId
+ */
+export async function unpublishCampaignById(campaignId) {
+  const campaign = await campaignRepository.findById(campaignId);
+  if (!campaign) {
+    throw new AppError('活动不存在', 'NOT_FOUND', 404);
+  }
+
+  if (campaign.status !== 'published') {
+    throw new AppError('活动未发布，无需下线', 'VALIDATION_ERROR', 400);
+  }
+
+  return withTransaction(async (client) => {
+    const updated = await campaignRepository.unpublishCampaign(client, campaignId);
+    return {
+      campaign: campaignRepository.mapCampaignRow(updated),
+    };
+  });
+}

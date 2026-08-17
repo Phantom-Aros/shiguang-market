@@ -100,6 +100,23 @@ export async function getRelatedPosts(postId, userId) {
 /**
  * @param {string} postId
  */
+export async function getShareMeta(postId) {
+  const row = await postRepository.findById(postId);
+  if (!row) {
+    throw new AppError('帖子不存在', 'NOT_FOUND', 404);
+  }
+
+  return {
+    postId: row.post_id,
+    title: row.title,
+    image: row.cover_url,
+    path: `/pages/post-detail/index?postId=${row.post_id}`,
+  };
+}
+
+/**
+ * @param {string} postId
+ */
 async function ensurePostExists(postId) {
   const row = await postRepository.findById(postId);
   if (!row) {

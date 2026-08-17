@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { ApiError, api } from '@shiguang/api-client';
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { ApiError, api, tokenStorage } from '@shiguang/api-client';
+import { buildAuthRedirectUrl, isAllowedAuthRedirect } from '@shiguang/shared';
 import { Button, useToast } from '@shiguang/ui';
 import { useAuth } from '../contexts/AuthContext';
 import styles from './Login.module.css';
@@ -8,8 +9,10 @@ import styles from './Login.module.css';
 export function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
+  const redirect = searchParams.get('redirect');
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -18,6 +21,14 @@ export function LoginPage() {
   const [error, setError] = useState('');
 
   if (!loading && isAuthenticated) {
+    if (redirect && isAllowedAuthRedirect(redirect)) {
+      const accessToken = tokenStorage.getAccess();
+      const refreshToken = tokenStorage.getRefresh();
+      if (accessToken && refreshToken) {
+        window.location.replace(buildAuthRedirectUrl(redirect, { accessToken, refreshToken }));
+        return null;
+      }
+    }
     return <Navigate to={from} replace />;
   }
 
@@ -53,6 +64,14 @@ export function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
+      if (redirect && isAllowedAuthRedirect(redirect)) {
+        const data = await api.auth.login(phone, code);
+        tokenStorage.set(data.tokens.accessToken, data.tokens.refreshToken);
+        toast.success('登录成功');
+        window.location.href = buildAuthRedirectUrl(redirect, data.tokens);
+        return;
+      }
+
       await login(phone, code);
       toast.success('登录成功');
     } catch (err) {

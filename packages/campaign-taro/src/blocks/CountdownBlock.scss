@@ -1,0 +1,14 @@
+.campaign-countdown-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $sg-space-2;
+  padding: $sg-space-4;
+  background: $sg-color-bg-elevated;
+  border-radius: $sg-radius-md;
+
+  &__label {
+    font-size: $sg-font-size-sm;
+    color: $sg-color-text-secondary;
+  }
+}

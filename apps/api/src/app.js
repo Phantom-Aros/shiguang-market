@@ -36,7 +36,11 @@ export function createApp() {
 
   app.use(
     cors({
-      origin: env.isProduction ? false : true,
+      origin: env.isProduction
+        ? env.corsOrigins.length > 0
+          ? env.corsOrigins
+          : false
+        : true,
       credentials: true,
     }),
   );

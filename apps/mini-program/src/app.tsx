@@ -1,0 +1,14 @@
+import { PropsWithChildren } from 'react';
+import { useLaunch } from '@tarojs/taro';
+import { AuthProvider } from './contexts/AuthContext';
+import './app.scss';
+
+function App({ children }: PropsWithChildren) {
+  useLaunch(() => {
+    console.log('拾光市集小程序启动');
+  });
+
+  return <AuthProvider>{children}</AuthProvider>;
+}
+
+export default App;

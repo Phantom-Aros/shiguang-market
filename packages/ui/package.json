@@ -20,6 +20,10 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
+  "dependencies": {
+    "@iconify/react": "^6.0.2",
+    "@shiguang/icons": "*"
+  },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.6.14",
     "@storybook/react": "^8.6.14",

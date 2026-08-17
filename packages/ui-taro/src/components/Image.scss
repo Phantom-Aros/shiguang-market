@@ -1,0 +1,48 @@
+@import '../styles/tokens.scss';
+
+.sg-image {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: $sg-radius-sm;
+  background: $sg-color-border;
+
+  &__img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    &--hidden {
+      opacity: 0;
+    }
+  }
+
+  &__placeholder {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #eceff1 25%, #f5f6f7 50%, #eceff1 75%);
+    background-size: 200% 100%;
+    animation: sg-shimmer 1.2s ease-in-out infinite;
+  }
+
+  &__fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $sg-color-text-tertiary;
+    font-size: $sg-font-size-xs;
+  }
+}
+
+@keyframes sg-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

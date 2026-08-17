@@ -1,0 +1,58 @@
+@import '../styles/tokens.scss';
+
+.sg-product-card {
+  background: $sg-color-bg-elevated;
+  border-radius: $sg-radius-md;
+  overflow: hidden;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+
+  &__body {
+    padding: $sg-space-3;
+  }
+
+  &__title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: $sg-color-text;
+    font-size: $sg-font-size-sm;
+    line-height: 1.4;
+  }
+
+  &__footer {
+    margin-top: $sg-space-2;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: $sg-space-2;
+  }
+
+  &__author {
+    color: $sg-color-text-secondary;
+    font-size: $sg-font-size-xs;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+  }
+
+  &__like {
+    display: flex;
+    align-items: center;
+    gap: 4rpx;
+    color: $sg-color-text-tertiary;
+    font-size: $sg-font-size-xs;
+
+    &--active {
+      color: $sg-color-primary;
+    }
+  }
+
+  &__like-count {
+    font-size: $sg-font-size-xs;
+  }
+}

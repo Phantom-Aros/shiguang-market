@@ -8,6 +8,7 @@ vi.mock('../repositories/campaignRepository.js', async (importOriginal) => {
   return {
     ...actual,
     findBySlug: vi.fn(),
+    findById: vi.fn(),
     findVersionById: vi.fn(),
   };
 });
@@ -49,6 +50,22 @@ describe('campaignService', () => {
     it('throws when campaign not published', async () => {
       vi.mocked(campaignRepository.findBySlug).mockResolvedValue(null);
       await expect(campaignService.getPublishedCampaignBySlug('missing')).rejects.toThrow('活动不存在或未发布');
+    });
+  });
+
+  describe('unpublishCampaignById', () => {
+    it('throws when campaign is not published', async () => {
+      vi.mocked(campaignRepository.findById).mockResolvedValue({
+        campaign_id: 'camp1',
+        slug: '618-sale',
+        title: '618',
+        status: 'draft',
+        published_version_id: null,
+        canary_version_id: null,
+        rollout_percent: 0,
+      });
+
+      await expect(campaignService.unpublishCampaignById('camp1')).rejects.toThrow('活动未发布，无需下线');
     });
   });
 });

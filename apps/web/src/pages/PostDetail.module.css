@@ -77,6 +77,8 @@
 }
 
 .gallery {
+  width: 100%;
+  align-self: center;
   display: flex;
   flex-direction: column;
   gap: var(--sg-space-3);

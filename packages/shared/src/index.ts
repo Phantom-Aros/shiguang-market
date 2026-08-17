@@ -143,6 +143,15 @@ export interface InteractionResult {
   favoriteCount?: number;
 }
 
+/** 小程序分享元数据 */
+export interface PostShareMeta {
+  postId: string;
+  title: string;
+  image: string;
+  /** 小程序页面路径，如 /pages/post-detail/index?postId=xxx */
+  path: string;
+}
+
 /** 商品详情 */
 export interface ProductDetail {
   productId: string;
@@ -284,6 +293,17 @@ export interface CampaignVersionsResponse {
   versions: CampaignVersion[];
 }
 
+/** 搭建器加载的活动管理数据 */
+export interface CampaignManageData {
+  campaign: CampaignSummary;
+  editingVersion: CampaignVersion | null;
+}
+
+/** 活动列表 */
+export interface CampaignListResponse {
+  items: CampaignSummary[];
+}
+
 export type {
   AnalyticsEventName,
   AnalyticsEventPayload,
@@ -294,6 +314,13 @@ export type {
 } from './analytics/types.js';
 
 export { AnalyticsEvents } from './analytics/types.js';
+
+export { FEATURED_CAMPAIGN_SLUG, getCampaignBannerCopy } from './campaign.js';
+export {
+  buildAuthRedirectUrl,
+  consumeAuthTokensFromHash,
+  isAllowedAuthRedirect,
+} from './authRedirect.js';
 
 export type {
   AiMessageRole,

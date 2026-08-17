@@ -168,6 +168,32 @@
 
 **错误码**：`WECHAT_AUTH_FAILED`
 
+**测试号配置**：详见 [mini-program.md](./mini-program.md#微信登录配置)
+
+---
+
+## 内容模块 `/api/posts`
+
+### `GET /api/posts/:postId/share-meta`
+
+获取帖子分享元数据，供小程序 `onShareAppMessage` 与 H5 分享使用。无需鉴权。
+
+**响应**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "postId": "01H...",
+    "title": "夏日好物分享",
+    "image": "http://localhost:9000/shiguang/...",
+    "path": "/pages/post-detail/index?postId=01H..."
+  }
+}
+```
+
+**错误码**：`NOT_FOUND`
+
 ---
 
 ## 上传模块 `/api/uploads`

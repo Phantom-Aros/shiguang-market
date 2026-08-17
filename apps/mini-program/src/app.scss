@@ -1,0 +1,16 @@
+page {
+  background: $sg-color-bg;
+  color: $sg-color-text;
+  font-size: $sg-font-size-md;
+  box-sizing: border-box;
+}
+
+view,
+text,
+scroll-view {
+  box-sizing: border-box;
+}
+
+.safe-bottom {
+  padding-bottom: calc(#{$sg-space-4} + #{$sg-safe-area-bottom});
+}

@@ -1,0 +1,63 @@
+.pay-page {
+  min-height: 100vh;
+  padding: $sg-space-4;
+}
+
+.pay-header {
+  margin-bottom: $sg-space-6;
+}
+
+.pay-title {
+  display: block;
+  font-size: 44rpx;
+  font-weight: 700;
+  margin-bottom: $sg-space-3;
+}
+
+.pay-desc {
+  display: block;
+  color: $sg-color-text-secondary;
+  font-size: $sg-font-size-sm;
+  line-height: 1.6;
+}
+
+.pay-order,
+.pay-placeholder {
+  padding: $sg-space-5;
+  background: $sg-color-bg-elevated;
+  border-radius: $sg-radius-lg;
+  margin-bottom: $sg-space-6;
+}
+
+.pay-order-label {
+  display: block;
+  color: $sg-color-text-secondary;
+  font-size: $sg-font-size-sm;
+  margin-bottom: $sg-space-2;
+}
+
+.pay-order-product {
+  display: block;
+  font-size: $sg-font-size-md;
+  font-weight: 600;
+  color: $sg-color-text;
+  margin-bottom: $sg-space-2;
+}
+
+.pay-order-id {
+  display: block;
+  font-size: $sg-font-size-xs;
+  color: $sg-color-text-tertiary;
+  word-break: break-all;
+  margin-bottom: $sg-space-4;
+}
+
+.pay-placeholder {
+  text-align: center;
+  color: $sg-color-text-secondary;
+  font-size: $sg-font-size-sm;
+}
+
+.pay-actions {
+  margin-top: auto;
+}

@@ -14,10 +14,133 @@
 
 .toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
+}
+
+.toolbarTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.toolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.campaignList {
+  margin-bottom: 12px;
+}
+
+.campaignListLabel {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9cdcfe;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.campaignListEmpty {
+  margin: 0;
+  font-size: 13px;
+  color: #888;
+  line-height: 1.5;
+}
+
+.loginLink {
+  margin: 0 4px;
+  color: #4fc1ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.loginLink:hover {
+  color: #9cdcfe;
+}
+
+.campaignItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+}
+
+.campaignItemActive {
+  border-color: #007acc;
+  box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.35);
+}
+
+.campaignItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.campaignItemTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.campaignItemSlug {
+  font-size: 12px;
+  color: #888;
+  font-family: 'SF Mono', Menlo, Monaco, monospace;
+}
+
+.campaignItemStatus {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.campaignItemActions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.manageActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.statusBadge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusBadgePublished {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.statusBadgeDraft {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
 }
 
 .heading {
@@ -30,6 +153,11 @@
   margin: 0 0 12px;
   font-size: 13px;
   color: #888;
+  line-height: 1.6;
+}
+
+.hint .loginLink {
+  color: #4fc1ff;
 }
 
 .textarea {
@@ -55,6 +183,58 @@
   margin: 8px 0 0;
   font-size: 13px;
   color: #f48771;
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--sg-color-text-secondary, #888);
+}
+
+.versionList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.versionItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--sg-color-border-light, #3c3c3c);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.versionItem:hover {
+  background: var(--sg-color-border-light, rgba(255, 255, 255, 0.06));
+}
+
+.versionItemTitle {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.versionItemStatus {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.versionItemTime {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--sg-color-text-secondary, #888);
 }
 
 .preview {

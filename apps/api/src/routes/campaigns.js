@@ -30,6 +30,24 @@ const rollbackSchema = z.object({
   versionId: z.string().min(1),
 });
 
+router.get('/manage/:slug', requireAuth, async (req, res, next) => {
+  try {
+    const data = await campaignService.getCampaignForManage(req.params.slug);
+    ok(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/', requireAuth, async (req, res, next) => {
+  try {
+    const data = await campaignService.listCampaigns();
+    ok(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/', requireAuth, validate(createCampaignSchema), async (req, res, next) => {
   try {
     const data = await campaignService.createCampaign(req.body);
@@ -51,6 +69,15 @@ router.put('/:campaignId/schema', requireAuth, validate(updateSchemaBody), async
 router.post('/:campaignId/publish', requireAuth, validate(publishSchema), async (req, res, next) => {
   try {
     const data = await campaignService.publishCampaign(req.params.campaignId, req.body);
+    ok(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:campaignId/unpublish', requireAuth, async (req, res, next) => {
+  try {
+    const data = await campaignService.unpublishCampaignById(req.params.campaignId);
     ok(res, data);
   } catch (err) {
     next(err);

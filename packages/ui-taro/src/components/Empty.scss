@@ -1,0 +1,26 @@
+@import '../styles/tokens.scss';
+
+.sg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: $sg-space-8 $sg-space-4;
+  text-align: center;
+
+  &__title {
+    color: $sg-color-text;
+    font-size: $sg-font-size-lg;
+    font-weight: 600;
+  }
+
+  &__desc {
+    margin-top: $sg-space-2;
+    color: $sg-color-text-secondary;
+    font-size: $sg-font-size-sm;
+  }
+
+  &__action {
+    margin-top: $sg-space-5;
+  }
+}
