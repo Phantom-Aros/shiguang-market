@@ -1,22 +1,41 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, ToastProvider } from '@shiguang/ui';
 import { AuthProvider } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
+import { PageLoader } from './components/PageLoader';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { HomePage } from './pages/Home';
-import { LoginPage } from './pages/Login';
-import { PostDetailPage } from './pages/PostDetail';
-import { ProductDetailPage } from './pages/ProductDetail';
-import { CartPage } from './pages/Cart';
-import { CheckoutPage } from './pages/Checkout';
-import { PayOrderPage } from './pages/PayOrder';
-import { OrdersPage } from './pages/Orders';
-import { OrderDetailPage } from './pages/OrderDetail';
-import { ProfilePage } from './pages/Profile';
 import { queryClient } from './lib/queryClient';
 import './App.css';
+
+const HomePage = lazy(() => import('./pages/Home').then((m) => ({ default: m.HomePage })));
+const LoginPage = lazy(() => import('./pages/Login').then((m) => ({ default: m.LoginPage })));
+const PostDetailPage = lazy(() =>
+  import('./pages/PostDetail').then((m) => ({ default: m.PostDetailPage })),
+);
+const ProductDetailPage = lazy(() =>
+  import('./pages/ProductDetail').then((m) => ({ default: m.ProductDetailPage })),
+);
+const CartPage = lazy(() => import('./pages/Cart').then((m) => ({ default: m.CartPage })));
+const CheckoutPage = lazy(() =>
+  import('./pages/Checkout').then((m) => ({ default: m.CheckoutPage })),
+);
+const PayOrderPage = lazy(() =>
+  import('./pages/PayOrder').then((m) => ({ default: m.PayOrderPage })),
+);
+const OrdersPage = lazy(() => import('./pages/Orders').then((m) => ({ default: m.OrdersPage })));
+const OrderDetailPage = lazy(() =>
+  import('./pages/OrderDetail').then((m) => ({ default: m.OrderDetailPage })),
+);
+const ProfilePage = lazy(() =>
+  import('./pages/Profile').then((m) => ({ default: m.ProfilePage })),
+);
+
+function Lazy({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
 export default function App() {
   return (
@@ -28,15 +47,45 @@ export default function App() {
               <AuthProvider>
                 <Routes>
                   <Route element={<Layout />}>
-                    <Route index element={<HomePage />} />
-                    <Route path="posts/:postId" element={<PostDetailPage />} />
-                    <Route path="products/:productId" element={<ProductDetailPage />} />
-                    <Route path="login" element={<LoginPage />} />
+                    <Route
+                      index
+                      element={
+                        <Lazy>
+                          <HomePage />
+                        </Lazy>
+                      }
+                    />
+                    <Route
+                      path="posts/:postId"
+                      element={
+                        <Lazy>
+                          <PostDetailPage />
+                        </Lazy>
+                      }
+                    />
+                    <Route
+                      path="products/:productId"
+                      element={
+                        <Lazy>
+                          <ProductDetailPage />
+                        </Lazy>
+                      }
+                    />
+                    <Route
+                      path="login"
+                      element={
+                        <Lazy>
+                          <LoginPage />
+                        </Lazy>
+                      }
+                    />
                     <Route
                       path="cart"
                       element={
                         <ProtectedRoute>
-                          <CartPage />
+                          <Lazy>
+                            <CartPage />
+                          </Lazy>
                         </ProtectedRoute>
                       }
                     />
@@ -44,7 +93,9 @@ export default function App() {
                       path="checkout"
                       element={
                         <ProtectedRoute>
-                          <CheckoutPage />
+                          <Lazy>
+                            <CheckoutPage />
+                          </Lazy>
                         </ProtectedRoute>
                       }
                     />
@@ -52,7 +103,9 @@ export default function App() {
                       path="orders"
                       element={
                         <ProtectedRoute>
-                          <OrdersPage />
+                          <Lazy>
+                            <OrdersPage />
+                          </Lazy>
                         </ProtectedRoute>
                       }
                     />
@@ -60,7 +113,9 @@ export default function App() {
                       path="orders/:orderId"
                       element={
                         <ProtectedRoute>
-                          <OrderDetailPage />
+                          <Lazy>
+                            <OrderDetailPage />
+                          </Lazy>
                         </ProtectedRoute>
                       }
                     />
@@ -68,7 +123,9 @@ export default function App() {
                       path="orders/:orderId/pay"
                       element={
                         <ProtectedRoute>
-                          <PayOrderPage />
+                          <Lazy>
+                            <PayOrderPage />
+                          </Lazy>
                         </ProtectedRoute>
                       }
                     />
@@ -76,18 +133,20 @@ export default function App() {
                       path="profile"
                       element={
                         <ProtectedRoute>
-                          <ProfilePage />
+                          <Lazy>
+                            <ProfilePage />
+                          </Lazy>
                         </ProtectedRoute>
                       }
                     />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>
                 </Routes>
-            </AuthProvider>
-          </ToastProvider>
-        </ThemeProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+              </AuthProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

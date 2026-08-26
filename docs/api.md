@@ -1,6 +1,8 @@
 # 拾光市集 API 文档
 
 > 基础路径：`/api` · 统一响应格式见下文
+>
+> **交互式文档**：启动 API 后访问 [`/api/docs`](http://localhost:3000/api/docs)（OpenAPI 3 + Swagger UI）
 
 ## 统一响应格式
 

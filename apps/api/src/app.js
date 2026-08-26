@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
@@ -15,6 +16,7 @@ import analyticsRouter from './routes/analytics.js';
 import metricsRouter from './routes/metrics.js';
 import campaignsRouter from './routes/campaigns.js';
 import aiRouter from './routes/ai.js';
+import docsRouter from './routes/docs.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { env } from './env.js';
 
@@ -45,6 +47,19 @@ export function createApp() {
     }),
   );
 
+  app.use(
+    compression({
+      threshold: 1024,
+      filter: (req, res) => {
+        const contentType = String(res.getHeader('Content-Type') ?? '');
+        if (contentType.includes('text/event-stream')) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    }),
+  );
+
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/health', healthRouter);
@@ -59,6 +74,7 @@ export function createApp() {
   app.use('/api/metrics', metricsRouter);
   app.use('/api/campaigns', campaignsRouter);
   app.use('/api/ai', aiRouter);
+  app.use('/api/docs', docsRouter);
 
   app.use(errorHandler);
 

@@ -16,6 +16,14 @@
   opacity: 0;
 }
 
+.blur {
+  position: absolute;
+  inset: 0;
+  filter: blur(16px);
+  transform: scale(1.05);
+  opacity: 0.85;
+}
+
 .placeholder {
   position: absolute;
   inset: 0;

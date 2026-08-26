@@ -1,0 +1,306 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "拾光市集 API",
+    "description": "内容种草 + 轻电商 C 端 API。统一响应格式：`{ ok: true, data }` 或 `{ ok: false, error, code }`",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "/api", "description": "API 基础路径" }],
+  "tags": [
+    { "name": "health", "description": "健康检查" },
+    { "name": "auth", "description": "鉴权" },
+    { "name": "feed", "description": "Feed 流" },
+    { "name": "posts", "description": "帖子" },
+    { "name": "products", "description": "商品" },
+    { "name": "cart", "description": "购物车" },
+    { "name": "orders", "description": "订单" },
+    { "name": "campaigns", "description": "活动页" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ApiSuccess": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "data": { "type": "object" }
+        },
+        "required": ["ok", "data"]
+      },
+      "ApiFailure": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": false },
+          "error": { "type": "string" },
+          "code": {
+            "type": "string",
+            "enum": [
+              "INTERNAL_ERROR",
+              "UNAUTHORIZED",
+              "NOT_FOUND",
+              "VALIDATION_ERROR",
+              "INVALID_CODE",
+              "INVALID_TOKEN",
+              "RATE_LIMITED",
+              "WECHAT_AUTH_FAILED",
+              "INSUFFICIENT_STOCK",
+              "ORDER_INVALID_STATE"
+            ]
+          }
+        },
+        "required": ["ok", "error", "code"]
+      },
+      "AuthTokens": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "expiresIn": { "type": "integer" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string" },
+          "phone": { "type": "string", "nullable": true },
+          "nickname": { "type": "string", "nullable": true },
+          "avatarUrl": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "健康检查",
+        "responses": {
+          "200": { "description": "服务状态", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } }
+        }
+      }
+    },
+    "/auth/sms/send": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "发送短信验证码",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone"],
+                "properties": { "phone": { "type": "string", "example": "13800138000" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "发送成功" },
+          "429": { "description": "RATE_LIMITED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } } } }
+        }
+      }
+    },
+    "/auth/sms/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "手机号验证码登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "code"],
+                "properties": {
+                  "phone": { "type": "string" },
+                  "code": { "type": "string", "example": "123456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "登录成功" },
+          "400": { "description": "INVALID_CODE" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "刷新令牌",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refreshToken"],
+                "properties": { "refreshToken": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "刷新成功" } }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "当前用户",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "用户信息" },
+          "401": { "description": "UNAUTHORIZED" }
+        }
+      }
+    },
+    "/feed": {
+      "get": {
+        "tags": ["feed"],
+        "summary": "Feed 游标分页",
+        "parameters": [
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 50 } }
+        ],
+        "responses": { "200": { "description": "Feed 列表" } }
+      }
+    },
+    "/posts/{postId}": {
+      "get": {
+        "tags": ["posts"],
+        "summary": "帖子详情",
+        "parameters": [{ "name": "postId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "帖子详情" }, "404": { "description": "NOT_FOUND" } }
+      }
+    },
+    "/products/{productId}": {
+      "get": {
+        "tags": ["products"],
+        "summary": "商品详情",
+        "parameters": [{ "name": "productId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "商品详情" } }
+      }
+    },
+    "/cart": {
+      "get": {
+        "tags": ["cart"],
+        "summary": "购物车",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "购物车内容" } }
+      }
+    },
+    "/cart/items": {
+      "put": {
+        "tags": ["cart"],
+        "summary": "添加/更新购物车商品",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId", "quantity"],
+                "properties": {
+                  "productId": { "type": "string" },
+                  "quantity": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "更新后的购物车" } }
+      }
+    },
+    "/orders": {
+      "get": {
+        "tags": ["orders"],
+        "summary": "订单列表",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": { "200": { "description": "订单列表" } }
+      },
+      "post": {
+        "tags": ["orders"],
+        "summary": "创建订单",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fromCart": { "type": "boolean" },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": { "type": "string" },
+                        "quantity": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "订单创建成功" },
+          "400": { "description": "INSUFFICIENT_STOCK" }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "tags": ["orders"],
+        "summary": "订单详情",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "订单详情" } }
+      }
+    },
+    "/orders/{orderId}/pay": {
+      "post": {
+        "tags": ["orders"],
+        "summary": "支付订单（Mock）",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "支付成功" },
+          "400": { "description": "ORDER_INVALID_STATE" }
+        }
+      }
+    },
+    "/orders/{orderId}/cancel": {
+      "post": {
+        "tags": ["orders"],
+        "summary": "取消订单",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "取消成功" } }
+      }
+    },
+    "/campaigns/{slug}": {
+      "get": {
+        "tags": ["campaigns"],
+        "summary": "按 slug 获取已发布活动",
+        "parameters": [{ "name": "slug", "in": "path", "required": true, "schema": { "type": "string", "example": "618-sale" } }],
+        "responses": { "200": { "description": "活动 Schema" }, "404": { "description": "NOT_FOUND" } }
+      }
+    }
+  }
+}

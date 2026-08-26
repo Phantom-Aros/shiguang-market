@@ -1,9 +1,8 @@
-import { redis } from '../cache/redis.js';
+import { cacheGet, cacheSet, CACHE_TTL } from '../cache/contentCache.js';
 import { AppError } from '../middleware/errorHandler.js';
 import * as postRepository from '../repositories/postRepository.js';
 import { decodeCursor, encodeCursor } from '../utils/cursor.js';
 
-const FEED_CACHE_TTL_SEC = 60;
 const FEED_CACHE_PREFIX = 'feed:hot:';
 
 /**
@@ -18,13 +17,9 @@ export async function getFeed({ cursor, limit, userId }) {
   const cacheKey = !decodedCursor && !userId ? `${FEED_CACHE_PREFIX}${limit}` : null;
 
   if (cacheKey) {
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch {
-      // Redis 不可用时降级到数据库
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return cached;
     }
   }
 
@@ -47,11 +42,7 @@ export async function getFeed({ cursor, limit, userId }) {
   const result = { items, nextCursor };
 
   if (cacheKey) {
-    try {
-      await redis.set(cacheKey, JSON.stringify(result), 'EX', FEED_CACHE_TTL_SEC);
-    } catch {
-      // 忽略缓存写入失败
-    }
+    await cacheSet(cacheKey, result, CACHE_TTL.FEED_HOT);
   }
 
   return result;

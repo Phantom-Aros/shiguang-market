@@ -2,7 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@shiguang/ui';
 import { getAnalyticsSessionId } from '@shiguang/shared/analytics';
 import { tokenStorage } from '@shiguang/api-client';
-import { Sentry } from '../lib/monitoring';
+import { captureException } from '../lib/monitoring';
 import styles from './ErrorBoundary.module.css';
 
 interface ErrorBoundaryProps {
@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
+    void captureException(error, { componentStack: info.componentStack });
     void reportClientError(error, info.componentStack);
   }
 

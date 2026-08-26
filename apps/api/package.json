@@ -8,11 +8,15 @@
     "start": "node src/index.js",
     "migrate": "node src/scripts/migrate.js",
     "seed": "node src/scripts/seed.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run src/tests",
+    "benchmark:feed": "node src/scripts/benchmark-feed.mjs",
+    "explain:feed": "node src/scripts/explain-feed.mjs"
   },
   "dependencies": {
     "@shiguang/campaign-schema": "*",
     "bullmq": "^5.53.2",
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
@@ -24,10 +28,14 @@
     "pg": "^8.16.0",
     "pino": "^9.7.0",
     "pino-http": "^10.4.0",
+    "supertest": "^7.2.2",
+    "swagger-ui-express": "^5.0.1",
     "ulid": "^2.4.0",
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "autocannon": "^8.0.0",
     "vitest": "^3.2.4"
   }
 }

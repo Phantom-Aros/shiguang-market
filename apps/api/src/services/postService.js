@@ -1,4 +1,11 @@
 import { AppError } from '../middleware/errorHandler.js';
+import {
+  cacheGet,
+  cacheSet,
+  CACHE_TTL,
+  invalidateFeedHotCache,
+  invalidatePostPartsCache,
+} from '../cache/contentCache.js';
 import * as interactionRepository from '../repositories/interactionRepository.js';
 import * as postRepository from '../repositories/postRepository.js';
 
@@ -14,18 +21,24 @@ export async function getPostDetail(postId, userId) {
 
   await postRepository.incrementViewCount(postId);
 
-  const [media, products] = await Promise.all([
-    postRepository.findMediaByPostId(postId),
-    postRepository.findProductsByPostId(postId),
-  ]);
+  const partsKey = `post:parts:${postId}`;
+  let parts = await cacheGet(partsKey);
+  if (!parts) {
+    const [media, products] = await Promise.all([
+      postRepository.findMediaByPostId(postId),
+      postRepository.findProductsByPostId(postId),
+    ]);
+    parts = { media, products };
+    await cacheSet(partsKey, parts, CACHE_TTL.POST_PARTS);
+  }
 
   return {
     ...postRepository.mapPostDetailRow({
       ...row,
       view_count: row.view_count + 1,
     }),
-    media,
-    products,
+    media: parts.media,
+    products: parts.products,
   };
 }
 
@@ -37,6 +50,7 @@ export async function likePost(postId, userId) {
   await ensurePostExists(postId);
   await interactionRepository.likePost(userId, postId);
   const counts = await interactionRepository.getCounts(postId);
+  await invalidateFeedHotCache();
   return {
     isLiked: true,
     likeCount: counts?.like_count ?? 0,
@@ -51,6 +65,7 @@ export async function unlikePost(postId, userId) {
   await ensurePostExists(postId);
   await interactionRepository.unlikePost(userId, postId);
   const counts = await interactionRepository.getCounts(postId);
+  await invalidateFeedHotCache();
   return {
     isLiked: false,
     likeCount: counts?.like_count ?? 0,
@@ -65,6 +80,7 @@ export async function favoritePost(postId, userId) {
   await ensurePostExists(postId);
   await interactionRepository.favoritePost(userId, postId);
   const counts = await interactionRepository.getCounts(postId);
+  await invalidateFeedHotCache();
   return {
     isFavorited: true,
     favoriteCount: counts?.favorite_count ?? 0,
@@ -79,6 +95,7 @@ export async function unfavoritePost(postId, userId) {
   await ensurePostExists(postId);
   await interactionRepository.unfavoritePost(userId, postId);
   const counts = await interactionRepository.getCounts(postId);
+  await invalidateFeedHotCache();
   return {
     isFavorited: false,
     favoriteCount: counts?.favorite_count ?? 0,
@@ -112,6 +129,14 @@ export async function getShareMeta(postId) {
     image: row.cover_url,
     path: `/pages/post-detail/index?postId=${row.post_id}`,
   };
+}
+
+/**
+ * @param {string} postId
+ */
+export async function invalidatePostCache(postId) {
+  await invalidatePostPartsCache(postId);
+  await invalidateFeedHotCache();
 }
 
 /**

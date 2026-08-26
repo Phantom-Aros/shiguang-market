@@ -130,7 +130,7 @@ export function ProductDetailPage() {
       </section>
 
       <footer className={styles.footer}>
-        <Button variant="secondary" loading={isUpdating} onClick={handleAddToCart}>
+        <Button variant="secondary" loading={isUpdating} onClick={handleAddToCart} data-testid="add-to-cart">
           加入购物车
         </Button>
         <Button

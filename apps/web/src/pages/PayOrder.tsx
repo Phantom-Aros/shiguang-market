@@ -138,6 +138,7 @@ export function PayOrderPage() {
           loading={payMutation.isPending || orderQuery.isFetching}
           disabled={payMutation.isPending}
           onClick={() => void handlePay()}
+          data-testid="mock-pay"
         >
           模拟支付
         </Button>

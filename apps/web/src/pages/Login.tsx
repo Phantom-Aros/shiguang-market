@@ -98,6 +98,7 @@ export function LoginPage() {
             placeholder="请输入手机号"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            data-testid="login-phone"
           />
         </label>
 
@@ -111,6 +112,7 @@ export function LoginPage() {
               placeholder="6 位验证码"
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              data-testid="login-code"
             />
             <Button
               type="button"
@@ -125,7 +127,7 @@ export function LoginPage() {
 
         {error && <p className={styles.error}>{error}</p>}
 
-        <Button type="submit" block size="lg" loading={submitting}>
+        <Button type="submit" block size="lg" loading={submitting} data-testid="login-submit">
           登录
         </Button>
       </form>

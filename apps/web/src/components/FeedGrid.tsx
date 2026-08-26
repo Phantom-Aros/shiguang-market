@@ -280,6 +280,7 @@ export function FeedGrid({
         authorAvatar={item.author.avatarUrl ?? undefined}
         likeCount={item.likeCount}
         liked={item.isLiked}
+        data-testid="feed-card"
         onClick={() => {
           track(AnalyticsEvents.FEED_CLICK, { postId: item.postId });
           onBeforeItemNavigate?.();

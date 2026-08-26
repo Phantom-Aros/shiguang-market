@@ -10,7 +10,7 @@ if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual';
 }
 
-initMonitoring();
+void initMonitoring();
 initWebVitals();
 
 createRoot(document.getElementById('root')!).render(

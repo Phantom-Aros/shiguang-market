@@ -87,6 +87,7 @@ export function CheckoutPage() {
           block
           loading={createOrderMutation.isPending}
           onClick={() => createOrderMutation.mutate()}
+          data-testid="submit-order"
         >
           提交订单
         </Button>

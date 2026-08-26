@@ -7,6 +7,11 @@ import * as orderService from '../services/orderService.js';
 
 const router = Router();
 
+const listOrdersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 const createOrderSchema = z.object({
   fromCart: z.boolean().optional(),
   items: z
@@ -19,10 +24,9 @@ const createOrderSchema = z.object({
     .optional(),
 });
 
-router.get('/', requireAuth, async (req, res, next) => {
+router.get('/', requireAuth, validate(listOrdersQuerySchema, 'query'), async (req, res, next) => {
   try {
-    const page = req.query.page ? Number(req.query.page) : 1;
-    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const { page, limit } = req.validatedQuery;
     const data = await orderService.listOrders(req.userId, { page, limit });
     ok(res, data);
   } catch (err) {

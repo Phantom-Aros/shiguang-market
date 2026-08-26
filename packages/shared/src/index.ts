@@ -321,6 +321,11 @@ export {
   consumeAuthTokensFromHash,
   isAllowedAuthRedirect,
 } from './authRedirect.js';
+export {
+  buildImageVariantUrl,
+  buildResponsiveImageSources,
+  type ResponsiveImageSources,
+} from './image.js';
 
 export type {
   AiMessageRole,

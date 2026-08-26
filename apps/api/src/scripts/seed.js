@@ -1,11 +1,21 @@
 import { ulid } from 'ulid';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { pool, query, withTransaction } from '../db/postgres.js';
 import { logger } from '../logger.js';
 import { build618ExampleSchema } from '@shiguang/campaign-schema/schema';
 
 const log = logger.child({ name: 'seed' });
 
+/** E2E / 集成测试固定账号 */
+export const E2E_TEST_USER = {
+  phone: '13900000001',
+  nickname: 'E2E 测试用户',
+  avatarUrl: 'https://i.pravatar.cc/150?u=e2e',
+};
+
 const AUTHORS = [
+  E2E_TEST_USER,
   { phone: '13800001001', nickname: '穿搭达人', avatarUrl: 'https://i.pravatar.cc/150?u=sg1' },
   { phone: '13800001002', nickname: '生活家', avatarUrl: 'https://i.pravatar.cc/150?u=sg2' },
   { phone: '13800001003', nickname: '数码控', avatarUrl: 'https://i.pravatar.cc/150?u=sg3' },
@@ -229,8 +239,9 @@ async function seed() {
     const productsResult = await query(`SELECT product_id FROM products LIMIT 8`);
     const products = productsResult.rows.map((r) => ({ productId: r.product_id }));
     await seedCampaign(products);
+    await ensureE2eUser();
     log.info({ count: postCountResult.rows[0].count }, 'posts already exist, skipping feed seed');
-    return;
+    return { skipped: true, posts: postCountResult.rows[0].count };
   }
 
   const authorIds = [];
@@ -244,12 +255,24 @@ async function seed() {
   await seedPosts(authorIds, products, 60);
   await seedCampaign(products);
 
-  log.info({ authors: 5, products: 8, posts: 60, campaign: '618-sale' }, 'seed complete');
+  log.info({ authors: AUTHORS.length, products: 8, posts: 60, campaign: '618-sale' }, 'seed complete');
+  return { skipped: false, authors: AUTHORS.length, products: 8, posts: 60, campaign: '618-sale' };
 }
 
-seed()
-  .catch((err) => {
-    log.fatal({ err }, 'seed failed');
-    process.exit(1);
-  })
-  .finally(() => pool.end());
+/** 确保 E2E 测试用户存在（幂等） */
+async function ensureE2eUser() {
+  await ensureAuthor(ulid(), E2E_TEST_USER);
+}
+
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  seed()
+    .catch((err) => {
+      log.fatal({ err }, 'seed failed');
+      process.exit(1);
+    })
+    .finally(() => pool.end());
+}
+
+export { seed, seedProducts, seedPosts, seedCampaign, ensureE2eUser };

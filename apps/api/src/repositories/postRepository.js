@@ -115,14 +115,15 @@ export async function findFeedPage({ cursor, limit, userId }) {
       u.nickname AS author_nickname,
       u.avatar_url AS author_avatar_url,
       ${interactionSql},
-      (
-        SELECT MIN(pr.price)
-        FROM post_products pp
-        JOIN products pr ON pr.product_id = pp.product_id
-        WHERE pp.post_id = p.post_id AND pr.status = 'active'
-      ) AS min_price
+      price_agg.min_price
     FROM posts p
     JOIN users u ON u.user_id = p.author_id
+    LEFT JOIN (
+      SELECT pp.post_id, MIN(pr.price) AS min_price
+      FROM post_products pp
+      JOIN products pr ON pr.product_id = pp.product_id AND pr.status = 'active'
+      GROUP BY pp.post_id
+    ) price_agg ON price_agg.post_id = p.post_id
     WHERE 1 = 1
     ${cursorClause}
     ORDER BY p.created_at DESC, p.post_id DESC
@@ -266,14 +267,15 @@ export async function findRelated(postId, userId, limit = 6) {
       u.nickname AS author_nickname,
       u.avatar_url AS author_avatar_url,
       ${interactionSql},
-      (
-        SELECT MIN(pr.price)
-        FROM post_products pp
-        JOIN products pr ON pr.product_id = pp.product_id
-        WHERE pp.post_id = p.post_id AND pr.status = 'active'
-      ) AS min_price
+      price_agg.min_price
     FROM posts p
     JOIN users u ON u.user_id = p.author_id
+    LEFT JOIN (
+      SELECT pp.post_id, MIN(pr.price) AS min_price
+      FROM post_products pp
+      JOIN products pr ON pr.product_id = pp.product_id AND pr.status = 'active'
+      GROUP BY pp.post_id
+    ) price_agg ON price_agg.post_id = p.post_id
     WHERE p.post_id <> $1
       AND (
         p.author_id = $2

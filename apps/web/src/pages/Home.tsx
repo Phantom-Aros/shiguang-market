@@ -39,7 +39,7 @@ export function HomePage() {
         </a>
       ) : null}
 
-      <div className={styles.feedArea}>
+      <div className={styles.feedArea} data-testid="feed-grid">
         <FeedGrid
           items={items}
           isLoading={feedQuery.isLoading}
