@@ -119,6 +119,7 @@ export function LoginPage() {
               variant="secondary"
               disabled={countdown > 0}
               onClick={handleSendCode}
+              data-testid="login-send-code"
             >
               {countdown > 0 ? `${countdown}s` : '获取验证码'}
             </Button>

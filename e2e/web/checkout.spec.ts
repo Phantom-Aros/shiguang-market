@@ -6,9 +6,10 @@ const E2E_CODE = '123456';
 async function login(page: import('@playwright/test').Page) {
   await page.goto('/login');
   await page.getByTestId('login-phone').fill(E2E_PHONE);
+  await page.getByTestId('login-send-code').click();
   await page.getByTestId('login-code').fill(E2E_CODE);
   await page.getByTestId('login-submit').click();
-  await expect(page).not.toHaveURL(/\/login/);
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 10_000 });
 }
 
 test.describe('购物核心链路', () => {
