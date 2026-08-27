@@ -52,6 +52,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create .env for API
+        run: |
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql://shiguang:shiguang@localhost:5432/shiguang
+          REDIS_URL=redis://localhost:6379
+          JWT_ACCESS_SECRET=ci-test-access-secret
+          JWT_REFRESH_SECRET=ci-test-refresh-secret
+          SMS_DEV_CODE=123456
+          EOF
+
       - name: Database migrate
         run: npm --workspace=api run migrate
 
