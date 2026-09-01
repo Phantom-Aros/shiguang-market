@@ -381,9 +381,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
           throw new ApiError('AI 对话失败', 'INTERNAL_ERROR', response.status);
         }
 
-        // SSE 流式仅 Web 端支持
-        const nativeResponse = response as unknown as Response;
-        const reader = nativeResponse.body?.getReader();
+        // SSE 流式仅 Web 端支持（browserFetch 透传 body；Taro 无流式能力）
+        const reader = response.body?.getReader();
         if (!reader) {
           throw new ApiError('无法读取流式响应', 'INTERNAL_ERROR', 500);
         }

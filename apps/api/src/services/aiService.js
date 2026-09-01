@@ -1,8 +1,20 @@
 import { AppError } from '../middleware/errorHandler.js';
+import { aiConfig } from '../config/ai.js';
 import { buildGeneralSystemPrompt, buildProductSystemPrompt } from '../config/aiPrompts.js';
 import * as aiRepository from '../repositories/aiRepository.js';
 import * as productRepository from '../repositories/productRepository.js';
 import * as llmService from './llmService.js';
+import {
+  buildAutoActivatedInstructionsPrompt,
+  buildSkillCatalogPrompt,
+  executeSkill,
+  getToolSkills,
+  loadSkills,
+  prepareActivatedSkills,
+  toLlmTools,
+} from '../aiSkills/registry.js';
+
+const MAX_TOOL_ROUNDS = 5;
 
 /**
  * 正在进行中的生成任务：conversationId -> AbortController
@@ -104,6 +116,131 @@ function writeSseEvent(res, event) {
 }
 
 /**
+ * @param {string} basePrompt
+ * @param {import('../aiSkills/types.js').AiSkillDefinition[]} skills
+ * @param {import('../aiSkills/types.js').AiSkillContext} skillCtx
+ */
+function buildSystemPromptWithSkills(basePrompt, skills, skillCtx) {
+  const catalogPrompt = buildSkillCatalogPrompt(skills);
+  const autoInstructions = buildAutoActivatedInstructionsPrompt(skills, skillCtx);
+  return [basePrompt, catalogPrompt, autoInstructions].filter(Boolean).join('\n\n');
+}
+
+/**
+ * @param {import('express').Response} res
+ * @param {string} content
+ * @param {AbortSignal} signal
+ */
+async function emitContentAsTokens(res, content, signal) {
+  let fullContent = '';
+
+  for (let index = 0; index < content.length; index += 4) {
+    if (signal.aborted) break;
+    const chunk = content.slice(index, index + 4);
+    fullContent += chunk;
+    writeSseEvent(res, { type: 'token', data: chunk });
+  }
+
+  return fullContent;
+}
+
+/**
+ * agent 循环：工具调用 → 按需加载 skill 全文 → 继续或返回
+ * @param {{
+ *   toolSkills: import('../aiSkills/types.js').AiSkillDefinition[];
+ *   allSkills: import('../aiSkills/types.js').AiSkillDefinition[];
+ *   systemPrompt: string;
+ *   messages: Array<Record<string, unknown>>;
+ *   skillCtx: import('../aiSkills/types.js').AiSkillContext;
+ *   signal: AbortSignal;
+ *   onToolCall?: (name: string, status: 'running' | 'done') => void;
+ * }} options
+ */
+async function runSkillAgentLoop({
+  toolSkills,
+  allSkills,
+  systemPrompt,
+  messages,
+  skillCtx,
+  signal,
+  onToolCall,
+}) {
+  const tools = toLlmTools(toolSkills);
+  let chatMessages = [...messages];
+  let instructionsPrompt = '';
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    if (signal.aborted) break;
+
+    const activeSystemPrompt = instructionsPrompt
+      ? `${systemPrompt}\n\n${instructionsPrompt}`
+      : systemPrompt;
+
+    const result = await llmService.completeChat({
+      systemPrompt: activeSystemPrompt,
+      messages: chatMessages,
+      tools,
+      signal,
+    });
+
+    if (!result.toolCalls.length) {
+      return {
+        messages: chatMessages,
+        instructionsPrompt,
+        directContent: result.content,
+      };
+    }
+
+    chatMessages.push({
+      role: 'assistant',
+      content: result.content,
+      tool_calls: result.toolCalls,
+    });
+
+    const skillNames = [...new Set(result.toolCalls.map((call) => call.function.name))];
+    const activated = prepareActivatedSkills(allSkills, skillNames);
+    if (activated.instructionsPrompt) {
+      instructionsPrompt = [instructionsPrompt, activated.instructionsPrompt]
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
+    for (const toolCall of result.toolCalls) {
+      const skill = toolSkills.find((item) => item.name === toolCall.function.name);
+      if (!skill) continue;
+
+      onToolCall?.(toolCall.function.name, 'running');
+
+      let args = {};
+      try {
+        args = JSON.parse(toolCall.function.arguments || '{}');
+      } catch {
+        args = {};
+      }
+
+      if (!args.productId && skillCtx.productId) {
+        args.productId = skillCtx.productId;
+      }
+
+      const toolResult = await executeSkill(skill, args, skillCtx);
+      chatMessages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(toolResult),
+      });
+
+      onToolCall?.(toolCall.function.name, 'done');
+    }
+  }
+
+  return {
+    messages: chatMessages,
+    instructionsPrompt,
+    directContent: null,
+  };
+}
+
+/**
  * @param {string} userId
  * @param {string} conversationId
  * @param {string} content
@@ -135,8 +272,21 @@ export async function streamChat(userId, conversationId, content, res, signal, o
   }
 
   const history = await aiRepository.findMessagesByConversationId(conversationId);
-  const messages = history.map((m) => ({ role: m.role, content: m.content }));
-  const systemPrompt = await buildSystemPrompt(conversation);
+  const chatMessages = history.map((m) => ({ role: m.role, content: m.content }));
+  const baseSystemPrompt = await buildSystemPrompt(conversation);
+  const skills = await loadSkills();
+  const toolSkills = getToolSkills(skills);
+  const useAgentLoop = toolSkills.length > 0 && !aiConfig.mock;
+
+  const skillCtx = {
+    userId,
+    conversationId,
+    productId: conversation.product_id,
+  };
+
+  const systemPrompt = skills.length > 0
+    ? buildSystemPromptWithSkills(baseSystemPrompt, skills, skillCtx)
+    : baseSystemPrompt;
 
   // 本地控制器：既响应客户端断连（signal），也响应显式停止接口
   const localController = new AbortController();
@@ -152,10 +302,46 @@ export async function streamChat(userId, conversationId, content, res, signal, o
 
   try {
     try {
-      for await (const token of llmService.streamChat({ systemPrompt, messages, signal: localSignal })) {
-        if (localSignal.aborted) break;
-        fullContent += token;
-        writeSseEvent(res, { type: 'token', data: token });
+      if (useAgentLoop) {
+        const agentResult = await runSkillAgentLoop({
+          toolSkills,
+          allSkills: skills,
+          systemPrompt,
+          messages: chatMessages,
+          skillCtx,
+          signal: localSignal,
+          onToolCall: (name, status) => {
+            writeSseEvent(res, { type: 'tool_call', data: { name, status } });
+          },
+        });
+
+        const finalSystemPrompt = agentResult.instructionsPrompt
+          ? `${systemPrompt}\n\n${agentResult.instructionsPrompt}`
+          : systemPrompt;
+
+        if (agentResult.directContent) {
+          fullContent = await emitContentAsTokens(res, agentResult.directContent, localSignal);
+        } else {
+          for await (const token of llmService.streamChat({
+            systemPrompt: finalSystemPrompt,
+            messages: agentResult.messages,
+            signal: localSignal,
+          })) {
+            if (localSignal.aborted) break;
+            fullContent += token;
+            writeSseEvent(res, { type: 'token', data: token });
+          }
+        }
+      } else {
+        for await (const token of llmService.streamChat({
+          systemPrompt,
+          messages: chatMessages,
+          signal: localSignal,
+        })) {
+          if (localSignal.aborted) break;
+          fullContent += token;
+          writeSseEvent(res, { type: 'token', data: token });
+        }
       }
     } catch (streamErr) {
       if (!localSignal.aborted) {

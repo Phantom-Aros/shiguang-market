@@ -2,6 +2,8 @@ export interface HttpResponse {
   ok: boolean;
   status: number;
   json<T>(): Promise<T>;
+  /** 浏览器 fetch 的原始 body，供 SSE 流式读取；Taro 适配器不提供 */
+  body?: ReadableStream<Uint8Array> | null;
 }
 
 export type HttpFetch = (url: string, init?: RequestInit) => Promise<HttpResponse>;
@@ -12,6 +14,7 @@ export const browserFetch: HttpFetch = async (url, init) => {
     ok: response.ok,
     status: response.status,
     json: <T>() => response.json() as Promise<T>,
+    body: response.body,
   };
 };
 

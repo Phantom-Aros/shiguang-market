@@ -15,9 +15,9 @@ export function buildProductSystemPrompt(product) {
   return `你是「拾光市集」的 AI 导购助手，正在帮助用户了解以下商品。请用简洁、友好的中文回答，侧重商品特点、适用场景与购买建议。不要编造商品没有的功能或参数。
 
 【商品信息】
+- 商品 ID：${product.productId}
 - 名称：${product.name}
 - 价格：¥${priceYuan}${originalPriceYuan ? `（原价 ¥${originalPriceYuan}）` : ''}
-- 库存：${product.stock} 件
 - 描述：${product.description ?? '暂无详细描述'}
 
 【回答要求】

@@ -1,0 +1,33 @@
+---
+description: 保护本地 .env 不被 Agent 覆盖或删除
+alwaysApply: true
+---
+
+# 保护 .env 环境变量文件
+
+`.env` 含本地密钥与私有配置，**不在 Git 中**，被覆盖后无法从版本库恢复。
+
+## 禁止操作
+
+- **禁止**执行 `cp .env.example .env` 或任何用模板覆盖 `.env` 的命令
+- **禁止**用 `Write` / `StrReplace` 整份重写 `.env`
+- **禁止**为测试/CI 调试而 `mv .env .env.bak`、删除或替换 `.env`
+- **禁止**在 shell heredoc 中 `cat > .env <<'EOF'` 覆盖现有 `.env`
+- **禁止**把真实 API Key、JWT Secret 写入 `.env.example` 或提交到 Git
+
+## 允许操作
+
+- 更新 **`.env.example`** 模板（占位值、新增变量说明）
+- 用户**明确要求**修改 `.env` 时，仅做**最小范围**的 `StrReplace`（如新增一行、改单个变量）
+- 文档中说明「复制 `.env.example` 为 `.env`」——由**用户手动**执行，不由 Agent 执行
+
+## 用户要求改 .env 时
+
+1. 先说明将改动哪些变量，不展示或猜测已有密钥值
+2. 优先建议用户自行编辑；若用户坚持由 Agent 改，只改指定项，不动其他配置
+3. 不要备份后忘记恢复；若必须临时移走 `.env`，结束后必须还原用户原文件
+
+## CI / 测试环境变量
+
+- CI 中生成 `.env` 只在 workflow 里用 heredoc，**不影响本地 `.env`**
+- 本地测试缺变量时：用 `export VAR=value` 或临时文件，**不要动项目根目录 `.env`**

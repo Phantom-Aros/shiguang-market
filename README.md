@@ -101,7 +101,7 @@ flowchart TB
 ```
 shiguang-market/
 ├── apps/
-│   ├── api/            # Express 5 后端
+│   ├── api/            # Express 5 后端（含 aiSkills/）
 │   ├── web/            # React 主站 H5
 │   ├── campaign/       # 活动页
 │   └── mini-program/   # Taro 微信小程序
@@ -154,14 +154,16 @@ npm run test:e2e
 3. **活动配置化**：Schema 版本化发布，支持灰度与回滚
 4. **Monorepo 跨端**：`packages/ui` 统一组件，Web / 小程序复用 api-client
 5. **可观测性**：埋点、Web Vitals、Sentry 错误监控
-6. **工程质量**：OpenAPI 文档、集成测试、Playwright E2E、CI 门禁
+6. **AI 导购与 Skills**：SSE 流式对话、工具型 function calling（如实时查库存）、指令型 skill 配置化（`apps/api/src/aiSkills/`）
+7. **工程质量**：OpenAPI 文档、集成测试、Playwright E2E、CI 门禁
 
 ## 文档
 
 | 文档 | 说明 |
 |------|------|
 | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | 完整实施计划 |
-| [docs/api.md](./docs/api.md) | API 手写文档 |
+| [docs/ai-skills.md](./docs/ai-skills.md) | AI 导购架构、Skills 类型与 agent 循环 |
+| [docs/api.md](./docs/api.md) | API 手写文档（含 AI 端点） |
 | `/api/docs` | OpenAPI 3 + Swagger UI（运行时） |
 | [docs/performance-report.md](./docs/performance-report.md) | 性能优化报告 |
 | [docs/production-checklist.md](./docs/production-checklist.md) | 生产部署清单 |

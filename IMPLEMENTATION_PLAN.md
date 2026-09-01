@@ -125,7 +125,7 @@ apps/api/src/
 | 校验 | zod |
 | 日志 | pino |
 | 文档 | OpenAPI 3 + swagger-ui-express |
-| AI | OpenAI 兼容 API + SSE 流式 |
+| AI | OpenAI 兼容 API + SSE 流式 + aiSkills（function calling） |
 | 测试 | Vitest + supertest |
 
 ### 3.3 基础设施
@@ -445,29 +445,36 @@ JSON Schema、zod、动态组件、React.lazy、代码分割
 
 #### 目标
 
-商品详情页 AI 问答，流式 SSE，会话持久化，密钥仅在后端。
+商品详情页 AI 问答，流式 SSE，会话持久化，密钥仅在后端；支持可扩展 **aiSkills**（工具型 function calling + 指令型 prompt）。
 
 #### 后端任务
 
-- [ ] 迁移：`ai_conversations`、`ai_messages`
-- [ ] `POST /api/ai/conversations`：创建会话（可带 `productId` 上下文）
-- [ ] `GET /api/ai/conversations`、`GET /api/ai/conversations/:id/messages`
-- [ ] `POST /api/ai/conversations/:id/chat`：SSE 流式输出
-- [ ] 注入商品信息到 system prompt（从 `products` 表读取）
-- [ ] 流结束后持久化 assistant 消息
-- [ ] AI 接口 per-user 限流
+- [x] 迁移：`ai_conversations`、`ai_messages`
+- [x] `POST /api/ai/conversations`：创建会话（可带 `productId` 上下文）
+- [x] `GET /api/ai/conversations`、`GET /api/ai/conversations/:id/messages`
+- [x] `POST /api/ai/conversations/:id/chat`：SSE 流式输出
+- [x] `POST /api/ai/conversations/:id/chat/stop`：显式停止生成
+- [x] `DELETE /api/ai/conversations/:id/messages/last-assistant`：重试前删除 assistant
+- [x] 注入商品信息到 system prompt（从 `products` 表读取，含商品 ID）
+- [x] 流结束后持久化 assistant 消息；停止时截断并加 `…`
+- [x] AI 接口 per-user 限流
+- [x] **aiSkills 模块**：`loader` 扫描 `skills/`，按需加载
+- [x] **工具型 skill**：`get_product_detail`（handler 查库 + OpenAI tools）
+- [x] **指令型 skill**：`product_answer_style`（仅 `skill.md`，商品会话自动注入）
+- [x] **agent 循环**：`completeChat` + tool_call → `executeSkill` → `streamChat`（最多 5 轮）
 
 #### 前端任务
 
-- [ ] 商品详情页「问 AI」入口
-- [ ] 对话 UI：流式打字、停止生成、重试、空状态
-- [ ] 历史会话列表（侧边栏或抽屉）
-- [ ] 使用 `fetch` + `ReadableStream` 或 EventSource 消费 SSE
-- [ ] 埋点：`ai_chat_start`、`ai_chat_complete`
+- [x] 商品详情页「问 AI」入口
+- [x] 对话 UI：流式打字、停止生成、重试、空状态
+- [x] 历史会话列表（侧边栏或抽屉）
+- [x] 使用 `fetch` + `ReadableStream` 消费 SSE
+- [x] 埋点：`ai_chat_start`、`ai_chat_complete`
+- [ ] SSE `tool_call` 事件的前端展示（可选）
 
 #### 涉及技术
 
-SSE、OpenAI 兼容 API、Redis 限流、流式 UI
+SSE、OpenAI 兼容 API（function calling）、Redis 限流、流式 UI、skill.md 配置化
 
 #### 能力点
 
@@ -477,6 +484,8 @@ SSE、OpenAI 兼容 API、Redis 限流、流式 UI
 
 - 详情页可针对当前商品进行多轮问答
 - 对话历史可在后端查到
+- 库存等实时数据可通过 `get_product_detail` 查询（真实 API 模式）
+- 架构说明见 [docs/ai-skills.md](./docs/ai-skills.md)
 
 ---
 
@@ -629,7 +638,7 @@ Vitest、supertest、Playwright、OpenAPI
 | `/api/cart` | 购物车 | 列表、增删改 |
 | `/api/orders` | 订单 | 创建、支付、取消、列表 |
 | `/api/campaigns` | 活动 | CRUD、发布、回滚、按 slug 读取 |
-| `/api/ai` | AI | 会话、SSE chat |
+| `/api/ai` | AI | 会话、SSE chat、stop、skills（见 [docs/ai-skills.md](./docs/ai-skills.md)） |
 | `/api/analytics` | 埋点 | events、dashboard |
 | `/api/metrics` | 监控 | vitals、errors |
 
@@ -648,7 +657,7 @@ Vitest、supertest、Playwright、OpenAPI
 
 - [ ] H5 完整链路：登录 → Feed → 详情 → 加购 → 下单 → 支付
 - [ ] 活动页可通过 slug 访问，支持发布新版本与回滚
-- [ ] AI 对话流式可用，历史可查
+- [ ] AI 对话流式可用，历史可查；工具型 skill 在真实 API 下可 tool_call（见 [docs/ai-skills.md](./docs/ai-skills.md)）
 - [ ] 小程序：Feed + 详情 + 分享 + 微信登录
 - [ ] 所有基础 UI 来自 `packages/ui`
 
@@ -693,7 +702,7 @@ Vitest、supertest、Playwright、OpenAPI
 
 ### 亮点 4：AI 产品化边界
 
-> 前端负责流式体验与上下文展示，密钥与 prompt 组装在后端；限流 + 会话持久化，可讲清「C 端 AI 功能前端职责边界」。
+> 前端负责流式体验与上下文展示，密钥、prompt 与 **aiSkills** 编排均在后端；限流 + 会话持久化 + function calling agent 循环。工具型 skill（查库）与指令型 skill（话术约束）分离，按需加载 skill 全文，可讲清「C 端 AI 功能职责边界与可扩展技能架构」。
 
 **能力点**：⑥
 

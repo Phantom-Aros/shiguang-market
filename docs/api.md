@@ -198,6 +198,83 @@
 
 ---
 
+## AI 导购 `/api/ai`
+
+需要 Bearer accessToken。SSE 对话接口有 per-user 限流（`AI_RATE_LIMIT_*`）。
+
+架构与 Skills 说明见 [docs/ai-skills.md](./ai-skills.md)。
+
+### `POST /api/ai/conversations`
+
+创建会话。
+
+**请求体**
+
+```json
+{ "productId": "01H..." }
+```
+
+`productId` 可选；传入时校验商品存在且 `active`，并生成标题「关于「xxx」的咨询」。
+
+**响应** `201`
+
+```json
+{
+  "ok": true,
+  "data": {
+    "conversationId": "01H...",
+    "productId": "01H...",
+    "title": "关于「夏日T恤」的咨询",
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+}
+```
+
+### `GET /api/ai/conversations`
+
+当前用户的会话列表。
+
+### `GET /api/ai/conversations/:conversationId/messages`
+
+会话消息历史。
+
+### `POST /api/ai/conversations/:conversationId/chat`
+
+SSE 流式对话。`Content-Type: text/event-stream`。
+
+**请求体**
+
+```json
+{ "content": "这件衣服有货吗？", "retry": false }
+```
+
+| 字段 | 说明 |
+|------|------|
+| `content` | 用户消息，1–2000 字 |
+| `retry` | `true` 时不重复写入 user 消息，仅重新生成 assistant |
+
+**SSE 事件**（`data:` 后为 JSON）
+
+| type | 说明 |
+|------|------|
+| `thinking` | 连接建立 |
+| `tool_call` | `{ name, status: "running" \| "done" }` |
+| `token` | 流式文本片段 |
+| `done` | 正常结束，含 `messageId` |
+| `stopped` | 用户停止，含 `messageId` |
+| `error` | 错误信息 |
+
+### `POST /api/ai/conversations/:conversationId/chat/stop`
+
+显式停止正在进行的生成。响应 `{ stopped: true \| false }`。
+
+### `DELETE /api/ai/conversations/:conversationId/messages/last-assistant`
+
+删除最后一条 assistant 消息，供重试使用。响应 `{ removed: true, messageId }` 或 `{ removed: false }`。
+
+---
+
 ## 上传模块 `/api/uploads`
 
 ### `POST /api/uploads/images`

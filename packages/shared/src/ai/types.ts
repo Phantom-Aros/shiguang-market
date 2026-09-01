@@ -51,6 +51,7 @@ export interface AiChatPersistEvent {
 /** SSE 流式事件 */
 export type AiChatEvent =
   | { type: 'thinking' }
+  | { type: 'tool_call'; data: { name: string; status: 'running' | 'done' } }
   | { type: 'token'; data: string }
   | { type: 'done'; data?: AiChatPersistEvent }
   | { type: 'stopped'; data: AiChatPersistEvent }

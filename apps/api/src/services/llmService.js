@@ -1,6 +1,9 @@
 import { aiConfig } from '../config/ai.js';
 import { logger } from '../logger.js';
 
+const CHAT_COMPLETIONS_URL = () =>
+  `${aiConfig.baseUrl.replace(/\/$/, '')}/chat/completions`;
+
 /**
  * @param {string} text
  * @param {number} chunkSize
@@ -9,6 +12,80 @@ function* chunkText(text, chunkSize = 4) {
   for (let i = 0; i < text.length; i += chunkSize) {
     yield text.slice(i, i + chunkSize);
   }
+}
+
+/**
+ * @param {Response} response
+ */
+async function readChatCompletionError(response) {
+  const errText = await response.text().catch(() => '');
+  logger.warn({ status: response.status, body: errText }, 'LLM API error');
+  throw new Error(`大模型服务异常（${response.status}）`);
+}
+
+/**
+ * @param {unknown} message
+ */
+function parseToolCalls(message) {
+  if (!message?.tool_calls?.length) return [];
+
+  return message.tool_calls.map((call) => ({
+    id: call.id,
+    type: call.type ?? 'function',
+    function: {
+      name: call.function?.name ?? '',
+      arguments: call.function?.arguments ?? '{}',
+    },
+  }));
+}
+
+/**
+ * 非流式补全，用于 agent 工具调用轮次
+ * @param {{
+ *   systemPrompt: string;
+ *   messages: Array<Record<string, unknown>>;
+ *   tools?: unknown[];
+ *   signal?: AbortSignal;
+ * }} options
+ */
+export async function completeChat({ systemPrompt, messages, tools, signal }) {
+  if (aiConfig.mock) {
+    return { content: null, toolCalls: [] };
+  }
+
+  const body = {
+    model: aiConfig.model,
+    messages: [{ role: 'system', content: systemPrompt }, ...messages],
+    max_tokens: aiConfig.maxTokens,
+    temperature: aiConfig.temperature,
+  };
+
+  if (tools?.length) {
+    body.tools = tools;
+    body.tool_choice = 'auto';
+  }
+
+  const response = await fetch(CHAT_COMPLETIONS_URL(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${aiConfig.apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (!response.ok) {
+    await readChatCompletionError(response);
+  }
+
+  const data = await response.json();
+  const message = data.choices?.[0]?.message;
+
+  return {
+    content: message?.content ?? null,
+    toolCalls: parseToolCalls(message),
+  };
 }
 
 /**
@@ -32,7 +109,7 @@ async function* mockStream(userMessage, signal) {
  * 调用 OpenAI 兼容 API 流式聊天
  * @param {{
  *   systemPrompt: string;
- *   messages: Array<{ role: string; content: string }>;
+ *   messages: Array<Record<string, unknown>>;
  *   signal?: AbortSignal;
  * }} options
  * @returns {AsyncGenerator<string>}
@@ -44,7 +121,6 @@ export async function* streamChat({ systemPrompt, messages, signal }) {
     return;
   }
 
-  const url = `${aiConfig.baseUrl.replace(/\/$/, '')}/chat/completions`;
   const body = {
     model: aiConfig.model,
     messages: [{ role: 'system', content: systemPrompt }, ...messages],
@@ -53,7 +129,7 @@ export async function* streamChat({ systemPrompt, messages, signal }) {
     temperature: aiConfig.temperature,
   };
 
-  const response = await fetch(url, {
+  const response = await fetch(CHAT_COMPLETIONS_URL(), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -64,9 +140,7 @@ export async function* streamChat({ systemPrompt, messages, signal }) {
   });
 
   if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    logger.warn({ status: response.status, body: errText }, 'LLM API error');
-    throw new Error(`大模型服务异常（${response.status}）`);
+    await readChatCompletionError(response);
   }
 
   const reader = response.body?.getReader();
