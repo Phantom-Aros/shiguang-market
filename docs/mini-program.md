@@ -141,15 +141,127 @@ npm run generate --workspace=@shiguang/icons
 
 脚本会从 registry 自动提取用到的图标并生成精简子集（约 7KB），无需手抄 SVG path。
 
+## AI 流式对话
+
+商品详情页「问 AI」进入 `pages/ai-chat`，与 Web 商品详情页的 AI 导购共用同一套后端 SSE 接口（`POST /api/ai/conversations/:id/chat`）。协议、事件类型、停止/重试语义与 [AI 导购与 Skills 架构](./ai-skills.md) 一致；**差异主要在传输层与 UI 形态**。
+
+### 功能入口
+
+```
+商品详情（pages/product-detail）
+  → 点击「问 AI」
+  → pages/ai-chat?productId=...&productName=...
+  → 需先登录（未登录跳转「我的」）
+```
+
+### 整体数据流
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  pages/ai-chat  +  hooks/useAiProductChat                   │
+│    sendMessage / handleStop / handleRetry                   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ api.ai.chatStream()
+┌──────────────────────────▼──────────────────────────────────┐
+│  @shiguang/api-client                                         │
+│    chatStreamTransport → createTaroChatStreamTransport        │
+│      wx.request({ enableChunked: true })                      │
+│      onChunkReceived → parseSseChunk()                        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ POST .../chat  (text/event-stream)
+┌──────────────────────────▼──────────────────────────────────┐
+│  apps/api  aiService.streamChat  （与 Web 相同）               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 相关代码
+
+| 路径 | 职责 |
+|------|------|
+| `apps/mini-program/src/pages/ai-chat/` | 对话页 UI（消息列表、输入框、停止/重试） |
+| `apps/mini-program/src/hooks/useAiProductChat.ts` | 会话状态、发消息、流式渲染、停止与同步 |
+| `apps/mini-program/src/lib/api.ts` | 注入 `chatStreamTransport` |
+| `packages/api-client/src/taroChatStream.ts` | `enableChunked` + `onChunkReceived` 消费 SSE |
+| `packages/shared/src/ai/sse.ts` | `parseSseChunk` / `readSseFromStream`（**与 Web 共用**） |
+| `packages/shared/src/ai/chatSync.ts` | 停止/重试后与服务器消息对齐（**与 Web 共用**） |
+| `packages/shared/src/abort.ts` | `createAbortController()`（小程序无原生时 polyfill） |
+
+Web 端对应：`apps/web/src/components/AiChatDrawer.tsx`（侧栏 Drawer，逻辑与 `useAiProductChat` 同源）。
+
+### 与 Web 端的区别
+
+| 项目 | Web（H5） | 小程序 |
+|------|-----------|--------|
+| **UI 形态** | 商品详情内 `AiChatDrawer` 侧栏 | 独立页面 `pages/ai-chat` |
+| **入口** | 商品详情按钮打开 Drawer | `Taro.navigateTo` 跳转对话页 |
+| **流式传输** | `fetch` + `response.body.getReader()` | `wx.request` + **`enableChunked`** + **`onChunkReceived`** |
+| **api-client 配置** | 默认 `browserFetch`，无需额外配置 | `lib/api.ts` 注入 `chatStreamTransport: createTaroChatStreamTransport(...)` |
+| **普通 API 请求** | `fetch` | `createTaroFetch(Taro.request)`（**非流式**，整包返回） |
+| **取消请求** | 原生 `AbortController` | `createAbortController()`（无原生时自动 polyfill） |
+| **停止生成** | `POST .../chat/stop` + `abort()` | **相同**（不依赖关连接，靠显式 stop 接口） |
+| **SSE 解析** | `packages/shared/src/ai/sse.ts` | **相同** `parseSseChunk` |
+| **停止后消息同步** | `packages/shared/src/ai/chatSync.ts` | **相同** |
+| **状态管理** | React Query（会话列表缓存） | `useState` + hook 内手动 `refreshConversations` |
+| **tool_call 展示** | 暂未单独展示 | 流式前显示「正在查询 xxx…」 |
+| **埋点** | `AnalyticsEvents.AI_CHAT_*` | 暂未接入 |
+| **微信基础库** | 无要求 | **≥ 2.20.1**（`enableChunked`） |
+| **域名** | 开发代理 / CORS | request 合法域名须 **HTTPS**（开发工具可关校验） |
+
+### 流式消费细节（方案 A）
+
+1. `useAiProductChat` 调用 `api.ai.chatStream(conversationId, content, { signal })`。
+2. `createTaroChatStreamTransport` 发起 `POST`，设置 `enableChunked: true`。
+3. 每收到一块数据，`onChunkReceived` 将 `ArrayBuffer` 解码为文本，交给 **`parseSseChunk`** 按行解析 `data: {...}`。
+4. 解析出的事件类型与 Web 一致：`thinking` → `tool_call` → `token` → `done` / `stopped` / `error`。
+5. `token` 事件追加到 `streamingContent`，页面逐字渲染；`done` / `stopped` 后拉取服务器消息列表做最终对齐。
+
+> **为何不用 `fetch` / `EventSource`？** 小程序运行时无浏览器 DOM API，`Taro.request` 默认整包返回，不支持 `ReadableStream`。因此流式对话单独走 chunked 传输，其余接口仍用 `createTaroFetch`。
+
+### 停止与重试（与 Web 一致）
+
+**停止**
+
+1. 前端立即定格已显示文本并加 `…`
+2. `POST /api/ai/conversations/:id/chat/stop`
+3. `createAbortController().abort()` → `RequestTask.abort()` 断开 chunked 请求
+4. `chatSync` 工具与服务器落库内容校准
+
+**重试**
+
+1. 删除本地最后一条 assistant 消息
+2. `DELETE .../messages/last-assistant`
+3. 以 `{ content, retry: true }` 重新 `POST .../chat`
+
+### 环境要求
+
+- 微信基础库 **2.20.1+**（`enableChunked` / `onChunkReceived`）
+- 开发：开发者工具勾选「不校验合法域名」
+- 真机 / 上线：API 域名加入微信公众平台 **request 合法域名**（HTTPS）
+- 后端：与 Web 相同，需配置 `AI_*` 环境变量（见根目录 `.env.example`）
+
+### 常见问题
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| `AbortController is not defined` | 小程序无全局 `AbortController` | 已用 `createAbortController()` polyfill，确保代码已更新 |
+| 一直「思考中」无输出 | 域名未配置 / API 未启动 / 未登录 | 查 Network、确认 `TARO_APP_API_BASE`、先微信登录 |
+| 真机无法流式、模拟器正常 | 合法域名或 HTTPS 问题 | 配置 request 域名或检查证书 |
+| 停止后内容被完整回复覆盖 | 未走 `chatSync` 校准 | 应出现 `stopped` 事件；检查 stop 接口是否成功 |
+
+更完整的 Skills、Prompt 分层与 agent 循环说明见 [docs/ai-skills.md](./ai-skills.md)。
+
 ## 页面结构
 
 | 页面 | 路径 | 说明 |
 |------|------|------|
 | 发现（Feed） | `pages/index` | 双列瀑布流，无限滚动，顶部 618 入口 |
-| 帖子详情 | `pages/post-detail` | 图文、点赞收藏、分享 |
+| 购物车 | `pages/cart` | 商品列表、改数量、删除、去结算 |
+| 帖子详情 | `pages/post-detail` | 图文、点赞收藏、分享、关联好物跳转商品详情 |
+| 商品详情 | `pages/product-detail` | 价格、库存、数量、加购、问 AI |
+| AI 导购 | `pages/ai-chat` | 商品上下文 SSE 流式对话，详见上文 [AI 流式对话](#ai-流式对话) |
 | 618 活动 | `pages/campaign` | Schema 驱动活动页，slug 默认 `618-sale` |
 | 我的 | `pages/profile` | 微信登录、退出 |
-| 模拟支付 | `pages/pay` | 演示下单支付 Mock，支持 `productId` 参数 |
+| 模拟支付 | `pages/pay` | 演示下单支付 Mock，支持 `productId` / `orderId` 参数 |
 
 ## 真机调试注意
 

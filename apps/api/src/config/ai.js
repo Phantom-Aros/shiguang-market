@@ -41,4 +41,7 @@ export const aiConfig = {
     windowSec: Number(process.env.AI_RATE_LIMIT_WINDOW_SEC ?? 60),
     max: Number(process.env.AI_RATE_LIMIT_MAX ?? 20),
   },
+
+  /** Mock 流式每 chunk 间隔（毫秒） */
+  mockChunkDelayMs: Number(process.env.AI_MOCK_CHUNK_DELAY_MS ?? 80),
 };

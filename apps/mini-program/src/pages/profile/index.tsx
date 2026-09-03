@@ -7,7 +7,7 @@ import { useTabBarSelected } from '../../hooks/useTabBarSelected';
 import './index.scss';
 
 export default function ProfilePage() {
-  useTabBarSelected(1);
+  useTabBarSelected(2);
   const { user, loading, isLoggedIn, loginWithWechat, logout } = useAuth();
   const [loggingIn, setLoggingIn] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);

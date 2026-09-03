@@ -321,6 +321,8 @@ export {
   consumeAuthTokensFromHash,
   isAllowedAuthRedirect,
 } from './authRedirect.js';
+export { createAbortController } from './abort.js';
+export type { AbortControllerLike, AbortSignalLike } from './abort.js';
 export {
   buildImageVariantUrl,
   buildResponsiveImageSources,
@@ -338,4 +340,15 @@ export type {
   AiChatPersistEvent,
   AiChatEvent,
 } from './ai/types.js';
+
+export { parseSseChunk, readSseFromStream } from './ai/sse.js';
+export {
+  MESSAGE_SYNC_MAX_ATTEMPTS,
+  MESSAGE_SYNC_INTERVAL_MS,
+  syncMessagesFromServer,
+  withLocalStoppedAssistant,
+  isAcceptedStoppedServerContent,
+  resolveStoppedSyncResult,
+} from './ai/chatSync.js';
+export type { GetMessagesFn } from './ai/chatSync.js';
 

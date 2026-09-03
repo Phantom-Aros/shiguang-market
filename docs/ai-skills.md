@@ -23,7 +23,7 @@ apps/api/src/
 │           └── skill.md
 ├── services/
 │   ├── aiService.js       # 会话编排、agent 循环、SSE
-│   └── llmService.js      # completeChat（工具轮）+ streamChat（流式）
+│   └── llmService.js      # streamChat + streamChatWithTools（流式 + tools）
 └── routes/ai.js           # HTTP / SSE 路由
 ```
 
@@ -51,15 +51,21 @@ apps/api/src/
 
 类型定义见 `packages/shared/src/ai/types.ts`。
 
+### 微信小程序流式消费
+
+与 Web 共用 SSE 协议与 `parseSseChunk` / `chatSync`；传输层使用 `wx.request` 的 `enableChunked` + `onChunkReceived`。
+
+**详细说明（含与 Web 对比、停止/重试、环境要求）见 [小程序开发指南 · AI 流式对话](./mini-program.md#ai-流式对话)。**
+
 ## 对话流程
 
 ```
 用户提问
   → 写入 user 消息（DB）
   → 组装 system prompt（见下文「Prompt 分层」）
-  → [真实 API + 有工具型 skill] agent 循环（completeChat + tools，最多 5 轮）
-      → 模型 tool_call → executeSkill(handler) → tool result 回注
-  → streamChat 流式生成最终回复（或 agent 直接返回文本时分块输出）
+  → [真实 API + 有工具型 skill] agent 循环（streamChatWithTools，最多 5 轮）
+      → 边流式输出 token；若出现 tool_call → executeSkill(handler) → 继续下一轮
+  → streamChat 流式生成最终回复（agent 直接返回文本时已边生成边推送）
   → 落库 assistant 消息 → SSE done / stopped
 ```
 
@@ -183,10 +189,10 @@ skills/your-instruction/
 
 `runSkillAgentLoop`（`aiService.js`，最多 `MAX_TOOL_ROUNDS = 5`）：
 
-1. `completeChat` + `tools`（非流式）等待模型决策
-2. 无 `tool_calls` → 若有 `content` 则分块模拟流式输出（`emitContentAsTokens`），否则进入 `streamChat` 生成最终回复
-3. 有 `tool_calls` → `prepareActivatedSkills` 注入对应 tool 的 skill.md 全文 → `executeSkill` → 将 tool result 追加到 messages → 下一轮
-4. 达到轮次上限后，用累积的 messages 走 `streamChat` 输出最终答案
+1. `streamChatWithTools`：流式 + tools，token 实时推送给前端
+2. 流结束无 `tool_calls` → 完成（内容已在流式过程中输出）
+3. 有 `tool_calls` → `prepareActivatedSkills` 注入 skill 正文 → `executeSkill` → 下一轮
+4. 达到轮次上限后，用 `streamChat`（无 tools）输出最终答案
 
 触发条件：`toolSkills.length > 0 && !aiConfig.mock`。
 

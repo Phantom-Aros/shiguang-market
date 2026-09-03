@@ -24,7 +24,9 @@ import type {
   SendSmsResponse,
   User,
 } from '@shiguang/shared';
+import { readSseFromStream, type AbortSignalLike } from '@shiguang/shared';
 import { browserFetch, type HttpFetch } from './fetch';
+import type { ChatStreamTransport } from './taroChatStream';
 import {
   createLocalStorageTokenStorage,
   type TokenStorage,
@@ -40,6 +42,11 @@ export {
   createLocalStorageTokenStorage,
   createSyncStorageTokenStorage,
 } from './storage';
+export {
+  createTaroChatStreamTransport,
+  type ChatStreamTransport,
+  type ChatStreamRequest,
+} from './taroChatStream';
 
 export interface ApiClientOptions {
   baseUrl?: string;
@@ -47,6 +54,8 @@ export interface ApiClientOptions {
   onUnauthorized?: () => void;
   storage?: TokenStorage;
   fetchFn?: HttpFetch;
+  /** 小程序等环境注入 enableChunked 流式传输 */
+  chatStreamTransport?: ChatStreamTransport;
 }
 
 export class ApiError extends Error {
@@ -69,6 +78,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const baseUrl = options.baseUrl ?? '';
   const storage = options.storage ?? tokenStorage;
   const fetchFn = options.fetchFn ?? browserFetch;
+  const chatStreamTransport = options.chatStreamTransport;
   let onUnauthorized = options.onUnauthorized;
 
   function setOnUnauthorized(handler: () => void) {
@@ -356,7 +366,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       async *chatStream(
         conversationId: string,
         content: string,
-        options?: { signal?: AbortSignal; retry?: boolean },
+        options?: { signal?: AbortSignalLike; retry?: boolean },
       ): AsyncGenerator<AiChatEvent> {
         const accessToken = storage.getAccess();
         const headers: Record<string, string> = {
@@ -366,56 +376,36 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers.Authorization = `Bearer ${accessToken}`;
         }
 
-        const response = await fetchFn(`${baseUrl}/ai/conversations/${conversationId}/chat`, {
+        const url = `${baseUrl}/ai/conversations/${conversationId}/chat`;
+        const body = JSON.stringify({ content, retry: options?.retry });
+        const signal = options?.signal;
+
+        if (chatStreamTransport) {
+          yield* chatStreamTransport({ url, headers, body, signal });
+          return;
+        }
+
+        const response = await fetchFn(url, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ content, retry: options?.retry }),
-          signal: options?.signal,
+          body,
+          signal: signal as AbortSignal | undefined,
         });
 
         if (!response.ok) {
-          const body = await response.json<ApiResponse<unknown>>().catch(() => null);
-          if (body && !body.ok) {
-            throw new ApiError(body.error, body.code, response.status);
+          const responseBody = await response.json<ApiResponse<unknown>>().catch(() => null);
+          if (responseBody && !responseBody.ok) {
+            throw new ApiError(responseBody.error, responseBody.code, response.status);
           }
           throw new ApiError('AI 对话失败', 'INTERNAL_ERROR', response.status);
         }
 
-        // SSE 流式仅 Web 端支持（browserFetch 透传 body；Taro 无流式能力）
         const reader = response.body?.getReader();
         if (!reader) {
           throw new ApiError('无法读取流式响应', 'INTERNAL_ERROR', 500);
         }
 
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed.startsWith('data:')) continue;
-              const data = trimmed.slice(5).trim();
-              if (!data) continue;
-
-              try {
-                const event = JSON.parse(data) as AiChatEvent;
-                yield event;
-              } catch {
-                // 忽略无法解析的行
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock();
-        }
+        yield* readSseFromStream(reader);
       },
     },
   };

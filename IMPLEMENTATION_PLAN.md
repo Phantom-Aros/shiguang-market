@@ -461,7 +461,7 @@ JSON Schema、zod、动态组件、React.lazy、代码分割
 - [x] **aiSkills 模块**：`loader` 扫描 `skills/`，按需加载
 - [x] **工具型 skill**：`get_product_detail`（handler 查库 + OpenAI tools）
 - [x] **指令型 skill**：`product_answer_style`（仅 `skill.md`，商品会话自动注入）
-- [x] **agent 循环**：`completeChat` + tool_call → `executeSkill` → `streamChat`（最多 5 轮）
+- [x] **agent 循环**：`streamChatWithTools` + tool_call → `executeSkill`（最多 5 轮）
 
 #### 前端任务
 

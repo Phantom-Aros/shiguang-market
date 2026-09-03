@@ -100,6 +100,10 @@ export default function PostDetailPage() {
     }
   };
 
+  const openProductDetail = (targetProductId: string) => {
+    Taro.navigateTo({ url: `/pages/product-detail/index?productId=${targetProductId}` });
+  };
+
   if (loading) {
     return <Loading tip="加载中…" block />;
   }
@@ -173,7 +177,11 @@ export default function PostDetailPage() {
           <View className="detail-products">
             <Text className="detail-section-title">关联好物</Text>
             {post.products.map((product) => (
-              <View key={product.productId} className="detail-product">
+              <View
+                key={product.productId}
+                className="detail-product detail-product--clickable"
+                onClick={() => openProductDetail(product.productId)}
+              >
                 {product.coverUrl ? (
                   <TaroImage
                     className="detail-product-cover"

@@ -1,10 +1,15 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Text, View } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
+import type { OrderDetail } from '@shiguang/shared';
 import { Button, Loading, Price } from '@shiguang/ui-taro';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../lib/api';
 import './index.scss';
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
 
 /**
  * 模拟支付页：演示小程序端下单支付流程。
@@ -13,12 +18,29 @@ import './index.scss';
 export default function PayPage() {
   const router = useRouter();
   const productId = router.params.productId;
+  const orderIdParam = router.params.orderId;
   const { isLoggedIn } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(orderIdParam));
   const [paying, setPaying] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
-  const [totalAmount, setTotalAmount] = useState(0);
-  const [productName, setProductName] = useState<string | null>(null);
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+
+  const loadOrder = useCallback(async (orderId: string) => {
+    setLoading(true);
+    try {
+      const data = await api.orders.get(orderId);
+      setOrder(data);
+    } catch (err) {
+      Taro.showToast({ title: getErrorMessage(err, '订单加载失败'), icon: 'none' });
+      setTimeout(() => Taro.navigateBack(), 1500);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!orderIdParam) return;
+    void loadOrder(orderIdParam);
+  }, [loadOrder, orderIdParam]);
 
   const createDemoOrder = useCallback(async () => {
     if (!isLoggedIn) {
@@ -40,37 +62,38 @@ export default function PayPage() {
         return;
       }
 
-      const product = await api.products.get(targetProductId);
-      setProductName(product.name);
-
-      const order = await api.orders.create({
+      const created = await api.orders.create({
         items: [{ productId: targetProductId, quantity: 1 }],
       });
-      setOrderId(order.orderId);
-      setTotalAmount(order.totalAmount);
+      setOrder(created);
       Taro.showToast({ title: '订单已创建', icon: 'success' });
     } catch (err) {
-      const message = err instanceof Error ? err.message : '创建订单失败';
-      Taro.showToast({ title: message, icon: 'none' });
+      Taro.showToast({ title: getErrorMessage(err, '创建订单失败'), icon: 'none' });
     } finally {
       setLoading(false);
     }
   }, [isLoggedIn, productId]);
 
   const mockPay = async () => {
-    if (!orderId) return;
+    if (!order) return;
     setPaying(true);
     try {
-      await api.orders.pay(orderId);
+      await api.orders.pay(order.orderId);
       Taro.showToast({ title: '模拟支付成功', icon: 'success' });
       setTimeout(() => Taro.navigateBack(), 1500);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '支付失败';
-      Taro.showToast({ title: message, icon: 'none' });
+      Taro.showToast({ title: getErrorMessage(err, '支付失败'), icon: 'none' });
     } finally {
       setPaying(false);
     }
   };
+
+  if (loading) {
+    return <Loading tip="加载订单…" block />;
+  }
+
+  const productName = order?.items[0]?.productName ?? null;
+  const showCreateButton = !order && !orderIdParam;
 
   return (
     <View className="pay-page safe-bottom">
@@ -81,12 +104,15 @@ export default function PayPage() {
         </Text>
       </View>
 
-      {orderId ? (
+      {order ? (
         <View className="pay-order">
           <Text className="pay-order-label">待支付订单</Text>
           {productName ? <Text className="pay-order-product">{productName}</Text> : null}
-          <Text className="pay-order-id">{orderId}</Text>
-          <Price value={totalAmount} size="lg" />
+          {order.items.length > 1 ? (
+            <Text className="pay-order-meta">共 {order.items.length} 件商品</Text>
+          ) : null}
+          <Text className="pay-order-id">{order.orderId}</Text>
+          <Price value={order.totalAmount} size="lg" />
         </View>
       ) : (
         <View className="pay-placeholder">
@@ -97,15 +123,15 @@ export default function PayPage() {
       )}
 
       <View className="pay-actions">
-        {!orderId ? (
+        {showCreateButton ? (
           <Button variant="primary" block loading={loading} onClick={() => void createDemoOrder()}>
             {productId ? '创建活动商品订单' : '创建演示订单'}
           </Button>
-        ) : (
+        ) : order ? (
           <Button variant="primary" block loading={paying} onClick={() => void mockPay()}>
             模拟支付成功
           </Button>
-        )}
+        ) : null}
       </View>
     </View>
   );

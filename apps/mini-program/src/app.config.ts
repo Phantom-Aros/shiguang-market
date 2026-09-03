@@ -1,7 +1,10 @@
 export default defineAppConfig({
   pages: [
     'pages/index/index',
+    'pages/cart/index',
     'pages/post-detail/index',
+    'pages/product-detail/index',
+    'pages/ai-chat/index',
     'pages/profile/index',
     'pages/pay/index',
     'pages/campaign/index'
@@ -22,6 +25,10 @@ export default defineAppConfig({
       {
         pagePath: 'pages/index/index',
         text: '发现',
+      },
+      {
+        pagePath: 'pages/cart/index',
+        text: '购物车',
       },
       {
         pagePath: 'pages/profile/index',

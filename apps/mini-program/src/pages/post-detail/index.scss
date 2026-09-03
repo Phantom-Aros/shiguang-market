@@ -101,6 +101,11 @@
   background: white;
   border-radius: $sg-radius-md;
   margin-bottom: $sg-space-3;
+
+  &--clickable:active {
+    opacity: 0.85;
+    transform: scale(0.99);
+  }
 }
 
 .detail-product-cover {

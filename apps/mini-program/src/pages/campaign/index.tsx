@@ -55,7 +55,7 @@ export default function CampaignPage() {
   }, []);
 
   const handleProductClick = useCallback((productId: string) => {
-    Taro.navigateTo({ url: `/pages/pay/index?productId=${productId}` });
+    Taro.navigateTo({ url: `/pages/product-detail/index?productId=${productId}` });
   }, []);
 
   if (loading) {

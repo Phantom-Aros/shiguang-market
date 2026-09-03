@@ -127,25 +127,7 @@ function buildSystemPromptWithSkills(basePrompt, skills, skillCtx) {
 }
 
 /**
- * @param {import('express').Response} res
- * @param {string} content
- * @param {AbortSignal} signal
- */
-async function emitContentAsTokens(res, content, signal) {
-  let fullContent = '';
-
-  for (let index = 0; index < content.length; index += 4) {
-    if (signal.aborted) break;
-    const chunk = content.slice(index, index + 4);
-    fullContent += chunk;
-    writeSseEvent(res, { type: 'token', data: chunk });
-  }
-
-  return fullContent;
-}
-
-/**
- * agent 循环：工具调用 → 按需加载 skill 全文 → 继续或返回
+ * agent 循环：流式 + tools，边生成边推送；遇 tool_call 则执行 handler 后继续
  * @param {{
  *   toolSkills: import('../aiSkills/types.js').AiSkillDefinition[];
  *   allSkills: import('../aiSkills/types.js').AiSkillDefinition[];
@@ -153,8 +135,10 @@ async function emitContentAsTokens(res, content, signal) {
  *   messages: Array<Record<string, unknown>>;
  *   skillCtx: import('../aiSkills/types.js').AiSkillContext;
  *   signal: AbortSignal;
+ *   onToken?: (token: string) => void;
  *   onToolCall?: (name: string, status: 'running' | 'done') => void;
  * }} options
+ * @returns {Promise<{ content: string }>}
  */
 async function runSkillAgentLoop({
   toolSkills,
@@ -163,6 +147,7 @@ async function runSkillAgentLoop({
   messages,
   skillCtx,
   signal,
+  onToken,
   onToolCall,
 }) {
   const tools = toLlmTools(toolSkills);
@@ -176,24 +161,24 @@ async function runSkillAgentLoop({
       ? `${systemPrompt}\n\n${instructionsPrompt}`
       : systemPrompt;
 
-    const result = await llmService.completeChat({
+    const hasToolResults = chatMessages.some((message) => message.role === 'tool');
+
+    const result = await llmService.streamChatWithTools({
       systemPrompt: activeSystemPrompt,
       messages: chatMessages,
       tools,
       signal,
+      onToken,
+      toolChoice: hasToolResults ? 'none' : 'auto',
     });
 
     if (!result.toolCalls.length) {
-      return {
-        messages: chatMessages,
-        instructionsPrompt,
-        directContent: result.content,
-      };
+      return { content: result.content ?? '' };
     }
 
     chatMessages.push({
       role: 'assistant',
-      content: result.content,
+      content: result.content ?? '',
       tool_calls: result.toolCalls,
     });
 
@@ -207,22 +192,27 @@ async function runSkillAgentLoop({
 
     for (const toolCall of result.toolCalls) {
       const skill = toolSkills.find((item) => item.name === toolCall.function.name);
-      if (!skill) continue;
 
       onToolCall?.(toolCall.function.name, 'running');
 
-      let args = {};
-      try {
-        args = JSON.parse(toolCall.function.arguments || '{}');
-      } catch {
-        args = {};
+      let toolResult;
+      if (!skill) {
+        toolResult = { error: `Unknown tool: ${toolCall.function.name}` };
+      } else {
+        let args = {};
+        try {
+          args = JSON.parse(toolCall.function.arguments || '{}');
+        } catch {
+          args = {};
+        }
+
+        if (!args.productId && skillCtx.productId) {
+          args.productId = skillCtx.productId;
+        }
+
+        toolResult = await executeSkill(skill, args, skillCtx);
       }
 
-      if (!args.productId && skillCtx.productId) {
-        args.productId = skillCtx.productId;
-      }
-
-      const toolResult = await executeSkill(skill, args, skillCtx);
       chatMessages.push({
         role: 'tool',
         tool_call_id: toolCall.id,
@@ -233,11 +223,22 @@ async function runSkillAgentLoop({
     }
   }
 
-  return {
+  const finalSystemPrompt = instructionsPrompt
+    ? `${systemPrompt}\n\n${instructionsPrompt}`
+    : systemPrompt;
+
+  let content = '';
+  for await (const token of llmService.streamChat({
+    systemPrompt: finalSystemPrompt,
     messages: chatMessages,
-    instructionsPrompt,
-    directContent: null,
-  };
+    signal,
+  })) {
+    if (signal.aborted) break;
+    onToken?.(token);
+    content += token;
+  }
+
+  return { content };
 }
 
 /**
@@ -310,28 +311,14 @@ export async function streamChat(userId, conversationId, content, res, signal, o
           messages: chatMessages,
           skillCtx,
           signal: localSignal,
+          onToken: (token) => {
+            writeSseEvent(res, { type: 'token', data: token });
+          },
           onToolCall: (name, status) => {
             writeSseEvent(res, { type: 'tool_call', data: { name, status } });
           },
         });
-
-        const finalSystemPrompt = agentResult.instructionsPrompt
-          ? `${systemPrompt}\n\n${agentResult.instructionsPrompt}`
-          : systemPrompt;
-
-        if (agentResult.directContent) {
-          fullContent = await emitContentAsTokens(res, agentResult.directContent, localSignal);
-        } else {
-          for await (const token of llmService.streamChat({
-            systemPrompt: finalSystemPrompt,
-            messages: agentResult.messages,
-            signal: localSignal,
-          })) {
-            if (localSignal.aborted) break;
-            fullContent += token;
-            writeSseEvent(res, { type: 'token', data: token });
-          }
-        }
+        fullContent = agentResult.content;
       } else {
         for await (const token of llmService.streamChat({
           systemPrompt,

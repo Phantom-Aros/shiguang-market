@@ -3,6 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@shiguang/api-client';
 import type { AiConversation, AiMessage } from '@shiguang/shared';
+import {
+  resolveStoppedSyncResult,
+  syncMessagesFromServer,
+  withLocalStoppedAssistant,
+  isAcceptedStoppedServerContent,
+} from '@shiguang/shared';
 import { AnalyticsEvents, track } from '@shiguang/shared/analytics';
 import { Button, Empty, Icon, Loading } from '@shiguang/ui';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,81 +22,6 @@ interface AiChatDrawerProps {
 }
 
 type ChatStatus = 'idle' | 'streaming' | 'error';
-
-const MESSAGE_SYNC_MAX_ATTEMPTS = 30;
-const MESSAGE_SYNC_INTERVAL_MS = 200;
-
-async function syncMessagesFromServer(
-  conversationId: string,
-  options?: { waitForAssistant?: boolean; maxAttempts?: number },
-) {
-  const waitForAssistant = options?.waitForAssistant ?? false;
-  const maxAttempts = options?.maxAttempts ?? MESSAGE_SYNC_MAX_ATTEMPTS;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { items } = await api.ai.getMessages(conversationId);
-    const lastItem = items[items.length - 1];
-    if (!waitForAssistant || lastItem?.role === 'assistant') {
-      return items;
-    }
-    await new Promise((resolve) => setTimeout(resolve, MESSAGE_SYNC_INTERVAL_MS));
-  }
-
-  const { items } = await api.ai.getMessages(conversationId);
-  return items;
-}
-
-function withLocalStoppedAssistant(
-  items: AiMessage[],
-  conversationId: string,
-  assistantText: string,
-): AiMessage[] {
-  const lastItem = items[items.length - 1];
-  if (!assistantText || lastItem?.role === 'assistant') {
-    return items;
-  }
-
-  const plain = assistantText.replace(/…$/, '');
-  return [
-    ...items,
-    {
-      messageId: `pending-sync-${Date.now()}`,
-      conversationId,
-      role: 'assistant',
-      content: `${plain}…`,
-      createdAt: new Date().toISOString(),
-    },
-  ];
-}
-
-/** 用户手动停止后，仅当服务器内容与停止时一致才采纳（避免完整回复覆盖截断内容） */
-function isAcceptedStoppedServerContent(serverContent: string, localText: string) {
-  const plain = localText.replace(/…$/, '');
-  return serverContent === `${plain}…`;
-}
-
-function resolveStoppedSyncResult(
-  items: AiMessage[],
-  conversationId: string,
-  assistantText: string,
-): AiMessage[] {
-  const last = items[items.length - 1];
-  if (!assistantText) return items;
-
-  if (last?.role === 'user') {
-    return withLocalStoppedAssistant(items, conversationId, assistantText);
-  }
-
-  if (last?.role === 'assistant' && isAcceptedStoppedServerContent(last.content, assistantText)) {
-    return items;
-  }
-
-  if (last?.role === 'assistant') {
-    return withLocalStoppedAssistant(items.slice(0, -1), conversationId, assistantText);
-  }
-
-  return items;
-}
 
 export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDrawerProps) {
   const navigate = useNavigate();
@@ -277,7 +208,11 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
         try {
           let items = receivedPersistAck
             ? (await api.ai.getMessages(id)).items
-            : await syncMessagesFromServer(id, { waitForAssistant: hadLocalAssistant });
+            : await syncMessagesFromServer(
+                (cid) => api.ai.getMessages(cid),
+                id,
+                { waitForAssistant: hadLocalAssistant },
+              );
 
           if (wasUserStopped && hadLocalAssistant) {
             items = resolveStoppedSyncResult(items, id, assistantText);
@@ -291,7 +226,9 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
 
           // 用户停止后：仅当服务器落库的截断内容与本地一致时，才用真实 messageId 替换
           if (wasUserStopped && hadLocalAssistant) {
-            void syncMessagesFromServer(id, { waitForAssistant: true })
+            void syncMessagesFromServer((cid) => api.ai.getMessages(cid), id, {
+              waitForAssistant: true,
+            })
               .then((synced) => {
                 const last = synced[synced.length - 1];
                 if (
