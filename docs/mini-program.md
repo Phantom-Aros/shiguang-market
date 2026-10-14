@@ -202,7 +202,7 @@ Web 端对应：`apps/web/src/components/AiChatDrawer.tsx`（侧栏 Drawer，逻
 | **SSE 解析** | `packages/shared/src/ai/sse.ts` | **相同** `parseSseChunk` |
 | **停止后消息同步** | `packages/shared/src/ai/chatSync.ts` | **相同** |
 | **状态管理** | React Query（会话列表缓存） | `useState` + hook 内手动 `refreshConversations` |
-| **tool_call 展示** | 暂未单独展示 | 流式前显示「正在查询 xxx…」 |
+| **tool_status 展示** | 流式前显示「正在查询商品信息…」等业务文案 | **相同**（共用 `createToolStatusTracker`） |
 | **埋点** | `AnalyticsEvents.AI_CHAT_*` | 暂未接入 |
 | **微信基础库** | 无要求 | **≥ 2.20.1**（`enableChunked`） |
 | **域名** | 开发代理 / CORS | request 合法域名须 **HTTPS**（开发工具可关校验） |
@@ -212,8 +212,8 @@ Web 端对应：`apps/web/src/components/AiChatDrawer.tsx`（侧栏 Drawer，逻
 1. `useAiProductChat` 调用 `api.ai.chatStream(conversationId, content, { signal })`。
 2. `createTaroChatStreamTransport` 发起 `POST`，设置 `enableChunked: true`。
 3. 每收到一块数据，`onChunkReceived` 将 `ArrayBuffer` 解码为文本，交给 **`parseSseChunk`** 按行解析 `data: {...}`。
-4. 解析出的事件类型与 Web 一致：`thinking` → `tool_call` → `token` → `done` / `stopped` / `error`。
-5. `token` 事件追加到 `streamingContent`，页面逐字渲染；`done` / `stopped` 后拉取服务器消息列表做最终对齐。
+4. 解析出的事件类型与 Web 一致：`thinking` → `tool_status` → `token` → `done` / `stopped` / `error`。
+5. `tool_status` 经 `createToolStatusTracker()` 映射为用户文案（如「正在查询商品信息…」）；`token` 事件追加到 `streamingContent`，页面逐字渲染；`done` / `stopped` 后拉取服务器消息列表做最终对齐。
 
 > **为何不用 `fetch` / `EventSource`？** 小程序运行时无浏览器 DOM API，`Taro.request` 默认整包返回，不支持 `ReadableStream`。因此流式对话单独走 chunked 传输，其余接口仍用 `createTaroFetch`。
 

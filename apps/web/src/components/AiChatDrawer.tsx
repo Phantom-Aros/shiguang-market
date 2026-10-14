@@ -8,7 +8,9 @@ import {
   syncMessagesFromServer,
   withLocalStoppedAssistant,
   isAcceptedStoppedServerContent,
+  createToolStatusTracker,
 } from '@shiguang/shared';
+import type { ToolStatusTracker } from '@shiguang/shared';
 import { AnalyticsEvents, track } from '@shiguang/shared/analytics';
 import { Button, Empty, Icon, Loading } from '@shiguang/ui';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,8 +34,10 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<ChatStatus>('idle');
   const [streamingContent, setStreamingContent] = useState('');
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+  const toolStatusTrackerRef = useRef<ToolStatusTracker | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const chatStartRef = useRef<number | null>(null);
   // 停止时用于即时构造截断消息
@@ -64,13 +68,15 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, streamingContent, scrollToBottom]);
+  }, [messages, streamingContent, toolStatus, scrollToBottom]);
 
   useEffect(() => {
     if (!open) {
       abortRef.current?.abort();
       setStatus('idle');
       setStreamingContent('');
+      setToolStatus(null);
+      toolStatusTrackerRef.current?.reset();
       setErrorMessage('');
     }
   }, [open]);
@@ -80,6 +86,8 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     setConversationId(id);
     setStatus('idle');
     setStreamingContent('');
+    setToolStatus(null);
+    toolStatusTrackerRef.current?.reset();
     setErrorMessage('');
     const data = await api.ai.getMessages(id);
     setMessages(data.items);
@@ -110,6 +118,8 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     setInput('');
     setStatus('streaming');
     setStreamingContent('');
+    setToolStatus(null);
+    toolStatusTrackerRef.current = createToolStatusTracker();
 
     const id = await ensureConversation();
 
@@ -155,11 +165,15 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
       })) {
         if (event.type === 'thinking') {
           serverAcked = true;
+        } else if (event.type === 'tool_status') {
+          setToolStatus(toolStatusTrackerRef.current?.apply(event.data) ?? null);
         } else if (event.type === 'token') {
           if (stoppingRef.current) continue;
           assistantText += event.data;
           assistantTextRef.current = assistantText;
           setStreamingContent(assistantText);
+          setToolStatus(null);
+          toolStatusTrackerRef.current?.reset();
         } else if (event.type === 'error') {
           throw new Error(event.data);
         } else if (event.type === 'done' || event.type === 'stopped') {
@@ -247,6 +261,8 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
         }
       }
       setStreamingContent('');
+      setToolStatus(null);
+      toolStatusTrackerRef.current?.reset();
       setStatus(hasError ? 'error' : 'idle');
       abortRef.current = null;
       queryClient.invalidateQueries({ queryKey: ['ai', 'conversations'] });
@@ -265,6 +281,8 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
       setMessages((prev) => withLocalStoppedAssistant(prev, id, partial));
     }
     setStreamingContent('');
+    setToolStatus(null);
+    toolStatusTrackerRef.current?.reset();
 
     // 2) 显式通知后端停止生成并落库截断内容（不依赖 SSE 连接关闭）
     if (id) {
@@ -318,6 +336,8 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
     setInput('');
     setStatus('idle');
     setStreamingContent('');
+    setToolStatus(null);
+    toolStatusTrackerRef.current?.reset();
     setErrorMessage('');
   }
 
@@ -397,7 +417,13 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
                 </div>
               ))}
 
-              {status === 'streaming' && !streamingContent && (
+              {status === 'streaming' && toolStatus && !streamingContent ? (
+                <div className={styles.messageAssistant}>
+                  <p className={styles.toolStatus}>{toolStatus}</p>
+                </div>
+              ) : null}
+
+              {status === 'streaming' && !streamingContent && !toolStatus ? (
                 <div className={styles.messageAssistant}>
                   <p className={styles.thinking}>
                     <span className={styles.thinkingDots} aria-hidden>
@@ -408,7 +434,7 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
                     思考中
                   </p>
                 </div>
-              )}
+              ) : null}
 
               {streamingContent && (
                 <div className={styles.messageAssistant}>
@@ -448,16 +474,17 @@ export function AiChatDrawer({ open, onClose, productId, productName }: AiChatDr
                 <Button type="button" variant="secondary" size="sm" onClick={handleStop}>
                   停止
                 </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  disabled={!input.trim() || createConversationMutation.isPending}
-                >
-                  发送
-                </Button>
-              )}
+              ) : null}
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={
+                  !input.trim() || status === 'streaming' || createConversationMutation.isPending
+                }
+              >
+                发送
+              </Button>
             </form>
           </div>
         </div>

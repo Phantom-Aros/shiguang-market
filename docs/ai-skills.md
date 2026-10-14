@@ -22,9 +22,15 @@ apps/api/src/
 │       └── product-answer-style/ # 指令型 skill（仅 skill.md）
 │           └── skill.md
 ├── services/
-│   ├── aiService.js       # 会话编排、agent 循环、SSE
+│   ├── aiService.js       # 会话编排、agent 循环、SSE（含 tool_status 推送）
 │   └── llmService.js      # streamChat + streamChatWithTools（流式 + tools）
 └── routes/ai.js           # HTTP / SSE 路由
+
+packages/shared/src/ai/
+├── types.ts               # AiChatEvent（含 tool_status）
+├── toolStatus.ts          # category 映射、用户文案、createToolStatusTracker
+├── chatSync.ts            # 停止后消息对齐
+└── sse.ts                 # SSE 解析
 ```
 
 ## API 端点
@@ -43,13 +49,37 @@ apps/api/src/
 | 事件 | 说明 |
 |------|------|
 | `thinking` | 连接建立，等待首 token |
-| `tool_call` | 工具型 skill 执行中 / 完成，`{ name, status: 'running' \| 'done' }` |
+| `tool_status` | 工具型 skill 执行状态，`{ callId, category, status: 'started' \| 'succeeded' \| 'failed' }`；`category` 为业务语义（如 `product_detail`），不暴露内部 function name |
 | `token` | 流式文本片段 |
 | `done` | 正常结束，含 `messageId` |
 | `stopped` | 用户手动停止，含 `messageId` |
 | `error` | 错误信息 |
 
-类型定义见 `packages/shared/src/ai/types.ts`。
+类型定义见 `packages/shared/src/ai/types.ts`；工具状态文案与 tracker 见 `packages/shared/src/ai/toolStatus.ts`。
+
+### 工具执行状态（`tool_status`）
+
+后端在 agent 循环执行 tool skill 时推送 `tool_status`，前端据此区分「纯聊天」与「正在查实时数据」：
+
+| 字段 | 说明 |
+|------|------|
+| `callId` | LLM tool call ID，用于并发/重试时区分多次调用 |
+| `category` | 业务分类，如 `product_detail`（对应内部 `get_product_detail`） |
+| `status` | `started` 开始执行；`succeeded` 成功；`failed` 失败 |
+
+**前端展示原则**：
+
+- 展示用户可见的业务文案（如「正在查询商品信息…」），**不**展示 function name、参数或 handler 返回 JSON。
+- Web（`AiChatDrawer`）与小程序（`useAiProductChat`）共用 `createToolStatusTracker()` 跟踪状态。
+- 首个 `token` 到达后清除工具状态，进入正文流式输出。
+
+**category 与用户文案映射**（`toolStatus.ts`）：
+
+| category | started | failed |
+|----------|---------|--------|
+| `product_detail` | 正在查询商品信息… | 暂时无法获取最新商品信息 |
+
+新增 tool skill 时：在后端 `mapToolNameToCategory()` 与 shared `toolStatus.ts` 中同步增加 category 与文案。
 
 ### 微信小程序流式消费
 
@@ -215,9 +245,9 @@ skills/your-instruction/
 1. 设置 `AI_MOCK=false` 并配置真实 API Key，重启 API。
 2. 在**商品详情页**打开 AI，新建对话后发需要实时数据的问题（如「请查实时库存」）。
 3. 浏览器 Network → SSE `chat` 响应中应出现：
-   - `tool_call`（`get_product_detail`，`running` / `done`）
+   - `tool_status`（`category: "product_detail"`，`status: "started"` → `"succeeded"`）
    - 随后 `token` 流式回复
-4. 若仅有 `token`、无 `tool_call`：模型未发起 function calling（可能仍用 prompt 静态信息作答，或缺少商品 ID 导致不敢调用）。
+4. 若仅有 `token`、无 `tool_status`：模型未发起 function calling（可能仍用 prompt 静态信息作答，或缺少商品 ID 导致不敢调用）。
 
 ## 内置 Skill
 

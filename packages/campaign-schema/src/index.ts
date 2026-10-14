@@ -7,6 +7,7 @@ export {
   richTextBlockSchema,
   couponBannerBlockSchema,
   validateCampaignPageSchema,
+  formatCampaignPageSchemaErrors,
   build618ExampleSchema,
 } from './schema.js';
 

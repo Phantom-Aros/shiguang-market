@@ -160,6 +160,22 @@
   color: #4fc1ff;
 }
 
+.errorBanner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 135, 113, 0.55);
+  border-radius: 8px;
+  background: rgba(244, 135, 113, 0.12);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #ffb4a2;
+  word-break: break-word;
+}
+
 .textarea {
   flex: 1;
   min-height: 400px;
@@ -174,15 +190,18 @@
   resize: none;
 }
 
+.textareaInvalid {
+  border-color: #f48771;
+  box-shadow: 0 0 0 1px rgba(244, 135, 113, 0.35);
+}
+
 .textarea:focus {
   outline: none;
   border-color: #007acc;
 }
 
-.error {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: #f48771;
+.textareaInvalid:focus {
+  border-color: #f48771;
 }
 
 .confirmText {

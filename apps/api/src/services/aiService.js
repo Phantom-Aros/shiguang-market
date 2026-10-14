@@ -23,6 +23,12 @@ const MAX_TOOL_ROUNDS = 5;
  */
 const activeGenerations = new Map();
 
+/** @param {string} toolName */
+function mapToolNameToCategory(toolName) {
+  if (toolName === 'get_product_detail') return 'product_detail';
+  return null;
+}
+
 /**
  * @param {string} userId
  * @param {{ productId?: string }} [input]
@@ -136,7 +142,11 @@ function buildSystemPromptWithSkills(basePrompt, skills, skillCtx) {
  *   skillCtx: import('../aiSkills/types.js').AiSkillContext;
  *   signal: AbortSignal;
  *   onToken?: (token: string) => void;
- *   onToolCall?: (name: string, status: 'running' | 'done') => void;
+ *   onToolStatus?: (
+ *     callId: string,
+ *     category: 'product_detail',
+ *     status: 'started' | 'succeeded' | 'failed',
+ *   ) => void;
  * }} options
  * @returns {Promise<{ content: string }>}
  */
@@ -148,7 +158,7 @@ async function runSkillAgentLoop({
   skillCtx,
   signal,
   onToken,
-  onToolCall,
+  onToolStatus,
 }) {
   const tools = toLlmTools(toolSkills);
   let chatMessages = [...messages];
@@ -192,12 +202,17 @@ async function runSkillAgentLoop({
 
     for (const toolCall of result.toolCalls) {
       const skill = toolSkills.find((item) => item.name === toolCall.function.name);
+      const category = mapToolNameToCategory(toolCall.function.name);
 
-      onToolCall?.(toolCall.function.name, 'running');
+      if (category) {
+        onToolStatus?.(toolCall.id, category, 'started');
+      }
 
       let toolResult;
+      let toolFailed = false;
       if (!skill) {
         toolResult = { error: `Unknown tool: ${toolCall.function.name}` };
+        toolFailed = true;
       } else {
         let args = {};
         try {
@@ -210,7 +225,14 @@ async function runSkillAgentLoop({
           args.productId = skillCtx.productId;
         }
 
-        toolResult = await executeSkill(skill, args, skillCtx);
+        try {
+          toolResult = await executeSkill(skill, args, skillCtx);
+        } catch (err) {
+          toolResult = {
+            error: err instanceof Error ? err.message : 'Tool execution failed',
+          };
+          toolFailed = true;
+        }
       }
 
       chatMessages.push({
@@ -219,7 +241,9 @@ async function runSkillAgentLoop({
         content: JSON.stringify(toolResult),
       });
 
-      onToolCall?.(toolCall.function.name, 'done');
+      if (category) {
+        onToolStatus?.(toolCall.id, category, toolFailed ? 'failed' : 'succeeded');
+      }
     }
   }
 
@@ -314,8 +338,11 @@ export async function streamChat(userId, conversationId, content, res, signal, o
           onToken: (token) => {
             writeSseEvent(res, { type: 'token', data: token });
           },
-          onToolCall: (name, status) => {
-            writeSseEvent(res, { type: 'tool_call', data: { name, status } });
+          onToolStatus: (callId, category, status) => {
+            writeSseEvent(res, {
+              type: 'tool_status',
+              data: { callId, category, status },
+            });
           },
         });
         fullContent = agentResult.content;

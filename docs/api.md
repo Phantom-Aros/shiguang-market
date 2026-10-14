@@ -259,7 +259,7 @@ SSE 流式对话。`Content-Type: text/event-stream`。
 | type | 说明 |
 |------|------|
 | `thinking` | 连接建立 |
-| `tool_call` | `{ name, status: "running" \| "done" }` |
+| `tool_status` | `{ callId, category, status: "started" \| "succeeded" \| "failed" }`；category 为业务语义（如 `product_detail`） |
 | `token` | 流式文本片段 |
 | `done` | 正常结束，含 `messageId` |
 | `stopped` | 用户停止，含 `messageId` |

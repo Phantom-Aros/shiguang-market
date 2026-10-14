@@ -70,7 +70,7 @@ describe('loadSkills', () => {
   });
 });
 
-describe('strategy C lazy loading', () => {
+describe('skill lazy loading', () => {
   it('builds catalog with name, description and type', async () => {
     const skills = await loadSkills();
     const catalog = getSkillCatalog(skills);
@@ -79,7 +79,7 @@ describe('strategy C lazy loading', () => {
 
     expect(toolItem).toEqual({
       name: 'get_product_detail',
-      description: expect.stringContaining('查询商品实时详情'),
+      description: expect.stringContaining('查询商品最新价格'),
       type: 'tool',
     });
     expect(instructionItem?.type).toBe('instruction');
@@ -126,6 +126,7 @@ describe('strategy C lazy loading', () => {
     expect(activated.tools).toHaveLength(1);
     expect(activated.instructionsPrompt).toBe(buildActivatedSkillPrompt(skill));
     expect(activated.instructionsPrompt).toContain('【技能说明：get_product_detail】');
-    expect(activated.instructionsPrompt).toContain('仅基于工具返回的数据作答');
+    expect(activated.instructionsPrompt).toContain('工具返回字段');
+    expect(activated.instructionsPrompt).toContain('不适用');
   });
 });

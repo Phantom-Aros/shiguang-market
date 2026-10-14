@@ -351,4 +351,15 @@ export {
   resolveStoppedSyncResult,
 } from './ai/chatSync.js';
 export type { GetMessagesFn } from './ai/chatSync.js';
+export {
+  mapToolNameToCategory,
+  getToolStatusDisplayMessage,
+  createToolStatusTracker,
+} from './ai/toolStatus.js';
+export type {
+  AiToolStatusCategory,
+  AiToolStatusPhase,
+  AiToolStatusEventData,
+  ToolStatusTracker,
+} from './ai/toolStatus.js';
 

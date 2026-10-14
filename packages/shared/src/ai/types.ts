@@ -48,10 +48,14 @@ export interface AiChatPersistEvent {
   conversationId: string;
 }
 
+import type { AiToolStatusEventData } from './toolStatus.js';
+
+export type { AiToolStatusEventData };
+
 /** SSE 流式事件 */
 export type AiChatEvent =
   | { type: 'thinking' }
-  | { type: 'tool_call'; data: { name: string; status: 'running' | 'done' } }
+  | { type: 'tool_status'; data: AiToolStatusEventData }
   | { type: 'token'; data: string }
   | { type: 'done'; data?: AiChatPersistEvent }
   | { type: 'stopped'; data: AiChatPersistEvent }

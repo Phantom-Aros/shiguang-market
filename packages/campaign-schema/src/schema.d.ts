@@ -8,6 +8,8 @@ export const couponBannerBlockSchema: z.ZodTypeAny;
 export const campaignBlockSchema: z.ZodTypeAny;
 export const campaignPageSchema: z.ZodTypeAny;
 
+export function formatCampaignPageSchemaErrors(error: import('zod').ZodError): string;
+
 export function validateCampaignPageSchema(
   schema: unknown,
 ): { success: true; data: Record<string, unknown> } | { success: false; message: string };

@@ -1,5 +1,5 @@
 import type { AiChatEvent, AbortSignalLike } from '@shiguang/shared';
-import { parseSseChunk, readSseFromStream } from '@shiguang/shared';
+import { parseSseChunk } from '@shiguang/shared';
 
 export interface ChatStreamRequest {
   url: string;
@@ -37,12 +37,86 @@ type TaroRequestFn = (options: {
   fail?: (err: { errMsg: string }) => void;
 }) => TaroRequestTask;
 
-function decodeChunk(data: ArrayBuffer | string): string {
-  if (typeof data === 'string') return data;
+interface ChunkDecoder {
+  decode(data?: ArrayBuffer, options?: { stream?: boolean }): string;
+}
+
+function createChunkDecoder(): ChunkDecoder {
   if (typeof TextDecoder !== 'undefined') {
-    return new TextDecoder('utf-8').decode(data);
+    const decoder = new TextDecoder('utf-8');
+    return {
+      decode(data, options) {
+        return decoder.decode(data, options);
+      },
+    };
   }
-  return String.fromCharCode(...new Uint8Array(data));
+
+  let pending = new Uint8Array(0);
+
+  return {
+    decode(data, options) {
+      const incoming = data ? new Uint8Array(data) : new Uint8Array(0);
+      const bytes = new Uint8Array(pending.length + incoming.length);
+      bytes.set(pending);
+      bytes.set(incoming, pending.length);
+      pending = new Uint8Array(0);
+
+      let result = '';
+      let offset = 0;
+
+      while (offset < bytes.length) {
+        const first = bytes[offset];
+        let width = 1;
+
+        if (first >= 0xc2 && first <= 0xdf) width = 2;
+        else if (first >= 0xe0 && first <= 0xef) width = 3;
+        else if (first >= 0xf0 && first <= 0xf4) width = 4;
+
+        if (offset + width > bytes.length && options?.stream) {
+          pending = bytes.slice(offset);
+          break;
+        }
+
+        if (width === 1) {
+          result += first <= 0x7f ? String.fromCharCode(first) : '\uFFFD';
+          offset += 1;
+          continue;
+        }
+
+        const continuation = bytes.slice(offset + 1, offset + width);
+        const validContinuation =
+          continuation.length === width - 1 &&
+          continuation.every((byte) => byte >= 0x80 && byte <= 0xbf);
+
+        if (!validContinuation) {
+          result += '\uFFFD';
+          offset += 1;
+          continue;
+        }
+
+        let codePoint = first & (0x7f >> width);
+        for (const byte of continuation) {
+          codePoint = (codePoint << 6) | (byte & 0x3f);
+        }
+
+        const minCodePoint = width === 2 ? 0x80 : width === 3 ? 0x800 : 0x10000;
+        const validCodePoint =
+          codePoint >= minCodePoint &&
+          codePoint <= 0x10ffff &&
+          !(codePoint >= 0xd800 && codePoint <= 0xdfff);
+
+        result += validCodePoint ? String.fromCodePoint(codePoint) : '\uFFFD';
+        offset += width;
+      }
+
+      if (!options?.stream && pending.length > 0) {
+        result += '\uFFFD';
+        pending = new Uint8Array(0);
+      }
+
+      return result;
+    },
+  };
 }
 
 function waitForNext(
@@ -67,6 +141,7 @@ export function createTaroChatStreamTransport(request: TaroRequestFn): ChatStrea
     let error: Error | null = null;
     let buffer = '';
     let wake: (() => void) | null = null;
+    const decoder = createChunkDecoder();
 
     const notify = () => {
       wake?.();
@@ -106,6 +181,8 @@ export function createTaroChatStreamTransport(request: TaroRequestFn): ChatStrea
         } else if (typeof res.data === 'string' && res.data) {
           pushEvents(res.data);
         }
+        const finalText = decoder.decode();
+        if (finalText) pushEvents(finalText);
         done = true;
         notify();
       },
@@ -122,7 +199,11 @@ export function createTaroChatStreamTransport(request: TaroRequestFn): ChatStrea
     });
 
     const onChunk = (res: TaroChunkResponse) => {
-      pushEvents(decodeChunk(res.data));
+      const chunk =
+        typeof res.data === 'string'
+          ? res.data
+          : decoder.decode(res.data, { stream: true });
+      if (chunk) pushEvents(chunk);
     };
 
     if (typeof task.onChunkReceived === 'function') {

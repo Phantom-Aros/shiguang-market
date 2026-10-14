@@ -165,6 +165,14 @@
   color: var(--sg-color-text);
 }
 
+.toolStatus {
+  padding: var(--sg-space-3);
+  border-radius: var(--sg-radius-md);
+  background: var(--sg-color-bg-elevated);
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-color-text-secondary);
+}
+
 .thinking {
   display: inline-flex;
   align-items: center;

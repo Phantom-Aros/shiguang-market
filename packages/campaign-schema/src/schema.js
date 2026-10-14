@@ -58,7 +58,12 @@ export const campaignBlockSchema = z.discriminatedUnion('type', [
 ]);
 
 export const campaignPageSchema = z.object({
-  title: z.string().min(1, '活动标题不能为空'),
+  title: z
+    .string({
+      required_error: '活动标题不能为空',
+      invalid_type_error: '活动标题必须是字符串',
+    })
+    .min(1, '活动标题不能为空'),
   theme: z
     .object({
       primaryColor: z.string().optional(),
@@ -69,13 +74,39 @@ export const campaignPageSchema = z.object({
 });
 
 /**
+ * @param {import('zod').ZodIssue} issue
+ */
+function formatZodIssue(issue) {
+  const path = issue.path.length > 0 ? issue.path.join('.') : 'schema';
+  let message = issue.message;
+
+  if (message === 'Required') {
+    if (issue.path[0] === 'title') {
+      message = '活动标题不能为空';
+    } else if (issue.path[0] === 'blocks') {
+      message = '至少需要一个楼层';
+    } else {
+      message = '缺少必填字段';
+    }
+  }
+
+  return `${path}: ${message}`;
+}
+
+/**
+ * @param {import('zod').ZodError} error
+ */
+export function formatCampaignPageSchemaErrors(error) {
+  return error.errors.map(formatZodIssue).join('；');
+}
+
+/**
  * @param {unknown} schema
  */
 export function validateCampaignPageSchema(schema) {
   const result = campaignPageSchema.safeParse(schema);
   if (!result.success) {
-    const message = result.error.errors.map((e) => e.message).join('; ');
-    return { success: false, message };
+    return { success: false, message: formatCampaignPageSchemaErrors(result.error) };
   }
   return { success: true, data: result.data };
 }

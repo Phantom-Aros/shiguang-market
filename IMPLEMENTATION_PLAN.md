@@ -470,7 +470,7 @@ JSON Schema、zod、动态组件、React.lazy、代码分割
 - [x] 历史会话列表（侧边栏或抽屉）
 - [x] 使用 `fetch` + `ReadableStream` 消费 SSE
 - [x] 埋点：`ai_chat_start`、`ai_chat_complete`
-- [ ] SSE `tool_call` 事件的前端展示（可选）
+- [x] SSE `tool_status` 事件的前端展示（Web + 小程序，业务文案，不暴露 function name）
 
 #### 涉及技术
 

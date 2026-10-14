@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AbortControllerLike, AiConversation, AiMessage } from '@shiguang/shared';
 import {
   createAbortController,
+  createToolStatusTracker,
   isAcceptedStoppedServerContent,
   resolveStoppedSyncResult,
   syncMessagesFromServer,
   withLocalStoppedAssistant,
 } from '@shiguang/shared';
+import type { ToolStatusTracker } from '@shiguang/shared';
 import { api } from '../lib/api';
 
 export type AiChatStatus = 'idle' | 'streaming' | 'error';
@@ -34,6 +36,7 @@ export function useAiProductChat({
   const [creatingConversation, setCreatingConversation] = useState(false);
 
   const abortRef = useRef<AbortControllerLike | null>(null);
+  const toolStatusTrackerRef = useRef<ToolStatusTracker | null>(null);
   const assistantTextRef = useRef('');
   const streamingConversationRef = useRef<string | null>(null);
   const stoppingRef = useRef(false);
@@ -82,6 +85,7 @@ export function useAiProductChat({
     setStatus('idle');
     setStreamingContent('');
     setToolStatus(null);
+    toolStatusTrackerRef.current?.reset();
     setErrorMessage('');
     const data = await api.ai.getMessages(id);
     setMessages(data.items);
@@ -108,6 +112,7 @@ export function useAiProductChat({
       setStatus('streaming');
       setStreamingContent('');
       setToolStatus(null);
+      toolStatusTrackerRef.current = createToolStatusTracker();
 
       const id = await ensureConversation();
 
@@ -144,18 +149,15 @@ export function useAiProductChat({
         })) {
           if (event.type === 'thinking') {
             serverAcked = true;
-          } else if (event.type === 'tool_call') {
-            setToolStatus(
-              event.data.status === 'running'
-                ? `正在查询 ${event.data.name}…`
-                : null,
-            );
+          } else if (event.type === 'tool_status') {
+            setToolStatus(toolStatusTrackerRef.current?.apply(event.data) ?? null);
           } else if (event.type === 'token') {
             if (stoppingRef.current) continue;
             assistantText += event.data;
             assistantTextRef.current = assistantText;
             setStreamingContent(assistantText);
             setToolStatus(null);
+            toolStatusTrackerRef.current?.reset();
           } else if (event.type === 'error') {
             throw new Error(event.data);
           } else if (event.type === 'done' || event.type === 'stopped') {
@@ -223,6 +225,7 @@ export function useAiProductChat({
         }
         setStreamingContent('');
         setToolStatus(null);
+        toolStatusTrackerRef.current?.reset();
         setStatus(hasError ? 'error' : 'idle');
         abortRef.current = null;
         void refreshConversations();
@@ -243,6 +246,7 @@ export function useAiProductChat({
     }
     setStreamingContent('');
     setToolStatus(null);
+    toolStatusTrackerRef.current?.reset();
 
     if (id) {
       void api.ai
@@ -294,6 +298,7 @@ export function useAiProductChat({
     setStatus('idle');
     setStreamingContent('');
     setToolStatus(null);
+    toolStatusTrackerRef.current?.reset();
     setErrorMessage('');
   }, []);
 

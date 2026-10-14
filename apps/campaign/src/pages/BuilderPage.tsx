@@ -358,13 +358,19 @@ export function BuilderPage() {
           </a>
           。发布前请将 preview-* 替换为真实 productId。
         </p>
+        {error ? (
+          <div className={styles.errorBanner} id="schema-validation-error" role="alert">
+            <p className={styles.errorMessage}>{error}</p>
+          </div>
+        ) : null}
         <textarea
-          className={styles.textarea}
+          className={`${styles.textarea} ${error ? styles.textareaInvalid : ''}`}
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
           spellCheck={false}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? 'schema-validation-error' : undefined}
         />
-        {error && <p className={styles.error}>{error}</p>}
       </aside>
       <main className={styles.preview}>
         <div className={styles.phone}>
