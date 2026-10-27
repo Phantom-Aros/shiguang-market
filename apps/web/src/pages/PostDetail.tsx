@@ -122,6 +122,7 @@ export function PostDetailPage() {
                   key={product.productId}
                   to={`/products/${product.productId}`}
                   className={styles.productItem}
+                  data-testid="post-product-link"
                 >
                   {product.coverUrl && (
                     <img src={product.coverUrl} alt="" className={styles.productCover} />

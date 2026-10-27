@@ -32,7 +32,7 @@ const wechatLoginSchema = z.object({
 const smsSendLimiter = createRateLimiter({
   keyPrefix: 'auth:sms:send',
   windowSec: 60,
-  max: 1,
+  max: process.env.CI === 'true' ? 30 : 1,
   keyFn: (req) => req.body?.phone ?? req.ip ?? 'unknown',
 });
 
